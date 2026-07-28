@@ -18,35 +18,48 @@ TARGETED_FEEDS = [
 
 
 def _parse_feed(url: str):
-    """Legge un feed RSS in modo robusto.
+    """Legge un feed RSS, con un tentativo di recupero in caso di errore.
 
-    feedparser.parse(url) a volte fallisce ("mismatched tag") su feed che
-    in realtà sono leggibili: capita quando il server risponde in modo
-    diverso a client senza User-Agent da browser, o restituisce contenuto
-    leggermente malformato. Recuperiamo esplicitamente i byte con requests
-    (User-Agent da browser) e li passiamo a feedparser, più tollerante
-    quando riceve direttamente il contenuto invece dell'URL.
+    Metodo principale: feedparser.parse(url) direttamente — è il metodo che
+    in pratica funziona meglio con le testate italiane monitorate (alcuni
+    siti bloccano invece le richieste fatte con la libreria "requests" e
+    intestazioni da browser, paradossalmente più sospette agli occhi dei
+    sistemi anti-bot rispetto al comportamento "onesto" di feedparser).
+
+    Se il primo tentativo fallisce (es. XML malformato, errore di rete),
+    si tenta un secondo giro con intestazioni più complete da browser: è
+    un tentativo di recupero per problemi occasionali/temporanei, non una
+    soluzione garantita contro un sito che blocchi sistematicamente.
     """
+    parsed = feedparser.parse(url)
+    if parsed.entries:
+        return parsed
+
     try:
         resp = requests.get(
             url,
-            headers={"User-Agent": HTTP_USER_AGENT},
+            headers={
+                "User-Agent": HTTP_USER_AGENT,
+                "Accept": "application/rss+xml, application/xml, text/xml, */*",
+                "Accept-Language": "it-IT,it;q=0.9",
+            },
             timeout=REQUEST_TIMEOUT_SECONDS,
         )
         resp.raise_for_status()
         return feedparser.parse(resp.content)
     except requests.RequestException as exc:
         print(f"[targeted] errore HTTP nel recupero del feed {url}: {exc}")
-        # ultimo tentativo: lasciare fare tutto a feedparser
-        return feedparser.parse(url)
+        return parsed  # restituisco comunque il primo risultato (probabilmente vuoto)
 
 
 def fetch_targeted_articles() -> list[dict]:
     """Interroga i feed RSS mirati e restituisce una lista di articoli grezzi.
 
-    Ogni elemento: {url, source, title, published_at, acquisition_mode}.
-    Il testo completo NON è incluso qui: viene recuperato dal modulo di
-    parsing (src.parsing.extractor) a partire dall'URL.
+    Ogni elemento: {url, source, title, published_at, acquisition_mode,
+    rss_summary}. rss_summary è il testo/riassunto già incluso nel feed:
+    viene usato come riserva dal modulo di parsing se non è possibile
+    scaricare la pagina completa dell'articolo (es. sito che blocca lo
+    scraping, come osservato con Linkiesta).
     """
     articles = []
     for feed_cfg in TARGETED_FEEDS:
@@ -67,5 +80,6 @@ def fetch_targeted_articles() -> list[dict]:
                 "title": entry.get("title"),
                 "published_at": published_at,
                 "acquisition_mode": "mirato",
+                "rss_summary": entry.get("summary"),
             })
     return articles

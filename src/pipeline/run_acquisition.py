@@ -34,6 +34,12 @@ def run() -> None:
 
         text = extract_article_text(raw["url"])
         if not text:
+            # riserva: usa il riassunto già incluso nel feed RSS, quando
+            # la pagina completa non è raggiungibile (es. blocco anti-bot,
+            # osservato con Linkiesta). Meno ricco del testo completo, ma
+            # evita di perdere del tutto l'articolo.
+            text = raw.get("rss_summary")
+        if not text:
             continue
 
         passed_filter = passes_keyword_filter(text, raw.get("title", ""))
