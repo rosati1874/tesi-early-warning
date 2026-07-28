@@ -42,6 +42,6 @@ HTTP_USER_AGENT = (
 REQUEST_TIMEOUT_SECONDS = 15
 
 if not DATABASE_URL:
-    print("[config] ATTENZIONE: DATABASE_URL non impostata (vedi .env.example)")
+    print("[ATTENZIONE] [config] DATABASE_URL non impostata (vedi .env.example)")
 if not GEMINI_API_KEY:
-    print("[config] ATTENZIONE: GEMINI_API_KEY non impostata (vedi .env.example)")
+    print("[ATTENZIONE] [config] GEMINI_API_KEY non impostata (vedi .env.example)")

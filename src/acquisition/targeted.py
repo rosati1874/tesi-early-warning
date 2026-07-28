@@ -46,7 +46,7 @@ def _fetch_raw(url: str) -> bytes | None:
         with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT_SECONDS) as resp:
             return resp.read()
     except Exception as exc:  # noqa: BLE001 - qualunque errore di rete/HTTP
-        print(f"[targeted] errore nel recupero grezzo del feed {url}: {exc}")
+        print(f"[ATTENZIONE] [targeted] Errore nel recupero grezzo del feed {url}: {exc}")
         return None
 
 
@@ -70,7 +70,7 @@ def _parse_feed(url: str):
         sanitized = _sanitize_xml(raw)
         parsed_sanitized = feedparser.parse(sanitized)
         if parsed_sanitized.entries:
-            print(f"[targeted] feed {url} letto dopo riparazione XML automatica")
+            print(f"[INFO] [targeted] Feed {url} letto dopo riparazione XML automatica")
             return parsed_sanitized
         return parsed_sanitized
 
@@ -90,7 +90,7 @@ def fetch_targeted_articles() -> list[dict]:
     for feed_cfg in TARGETED_FEEDS:
         parsed = _parse_feed(feed_cfg["url"])
         if not parsed.entries:
-            print(f"[targeted] impossibile leggere il feed {feed_cfg['url']}: "
+            print(f"[ATTENZIONE] [targeted] Impossibile leggere il feed {feed_cfg['url']}: "
                   f"{parsed.get('bozo_exception')}")
             continue
 
@@ -107,4 +107,10 @@ def fetch_targeted_articles() -> list[dict]:
                 "acquisition_mode": "mirato",
                 "rss_summary": entry.get("summary"),
             })
+
+    if not articles:
+        print("[ATTENZIONE] [targeted] Nessun articolo recuperato dai feed mirati")
+    else:
+        print(f"[INFO] [targeted] Acquisizione mirata completata: {len(articles)} articoli estratti")
+
     return articles

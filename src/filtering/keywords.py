@@ -10,9 +10,14 @@ _keywords_cache: list[str] | None = None
 def load_keywords() -> list[str]:
     global _keywords_cache
     if _keywords_cache is None:
-        with open(KEYWORDS_PATH, encoding="utf-8") as f:
-            data = yaml.safe_load(f)
-        _keywords_cache = [kw.lower() for kw in data.get("keywords", [])]
+        try:
+            with open(KEYWORDS_PATH, encoding="utf-8") as f:
+                data = yaml.safe_load(f)
+            _keywords_cache = [kw.lower() for kw in data.get("keywords", [])]
+        except Exception as exc:
+            msg = f"[ERRORE GRAVE] [filtering] Impossibile caricare il file di keywords '{KEYWORDS_PATH}': {exc}"
+            print(msg)
+            raise RuntimeError(msg) from exc
     return _keywords_cache
 
 

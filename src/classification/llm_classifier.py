@@ -18,7 +18,9 @@ def _ensure_configured():
     global _configured
     if not _configured:
         if not GEMINI_API_KEY:
-            raise RuntimeError("GEMINI_API_KEY non impostata: vedi .env.example")
+            msg = "[ERRORE GRAVE] [llm_classifier] GEMINI_API_KEY non impostata: vedi .env.example"
+            print(msg)
+            raise RuntimeError(msg)
         genai.configure(api_key=GEMINI_API_KEY)
         _configured = True
 
@@ -39,7 +41,7 @@ def classify(title: str, text: str) -> dict:
         # rimuove eventuali code fence markdown residui
         raw = raw.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
         parsed = json.loads(raw)
-        return {
+        res = {
             "is_epidemic_signal": parsed.get("is_epidemic_signal"),
             "confidence": parsed.get("confidence"),
             "disease": parsed.get("disease"),
@@ -47,8 +49,10 @@ def classify(title: str, text: str) -> dict:
             "justification": parsed.get("justification"),
             "llm_model": GEMINI_MODEL,
         }
+        print(f"[INFO] [llm_classifier] Articolo '{title}' classificato (segnale epidemico: {res['is_epidemic_signal']}, confidenza: {res['confidence']})")
+        return res
     except Exception as exc:  # noqa: BLE001 - vogliamo loggare qualunque errore LLM/parsing
-        print(f"[llm_classifier] errore di classificazione: {exc}")
+        print(f"[ATTENZIONE] [llm_classifier] Errore di classificazione per '{title}': {exc}")
         return {
             "is_epidemic_signal": None,
             "confidence": None,

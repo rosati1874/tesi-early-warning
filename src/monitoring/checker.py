@@ -34,14 +34,16 @@ def check_article(session, article: Article) -> None:
         if resp.status_code == 404:
             result = "removed"
             article.status = "removed"
+            print(f"[ATTENZIONE] [monitoring] Articolo ID {article.id} ({article.url}) rimosso (HTTP 404)")
         elif resp.ok:
             result = "available"
             article.status = "active"
         else:
             result = "access_error"
+            print(f"[ATTENZIONE] [monitoring] Errore accesso all'articolo ID {article.id} ({article.url}): HTTP {http_status}")
 
     except requests.RequestException as exc:
-        print(f"[monitoring] errore accesso a {article.url}: {exc}")
+        print(f"[ATTENZIONE] [monitoring] Errore accesso all'articolo ID {article.id} ({article.url}): {exc}")
         http_status = None
         result = "access_error"
 
@@ -67,6 +69,7 @@ def check_article(session, article: Article) -> None:
                     content_hash=new_hash,
                     text_snapshot=current_text,
                 ))
+                print(f"[INFO] [monitoring] Rilevata nuova versione del contenuto per articolo ID {article.id}")
 
     article.last_checked_at = datetime.now(timezone.utc)
     session.commit()
@@ -79,6 +82,7 @@ def run_monitoring_cycle(session) -> None:
         .filter(Article.is_epidemic_signal.is_(True))
         .all()
     )
-    print(f"[monitoring] {len(relevant_articles)} articoli da controllare")
+    print(f"[INFO] [monitoring] Avvio ciclo di monitoraggio: {len(relevant_articles)} articoli da controllare")
     for article in relevant_articles:
         check_article(session, article)
+    print(f"[INFO] [monitoring] Ciclo di monitoraggio completato con successo")

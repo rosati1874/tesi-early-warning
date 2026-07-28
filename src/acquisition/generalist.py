@@ -27,7 +27,7 @@ def fetch_generalist_articles(queries: list[str] | None = None) -> list[dict]:
         feed_url = GOOGLE_NEWS_RSS_TEMPLATE.format(query=quote_plus(query))
         parsed = feedparser.parse(feed_url)
         if parsed.bozo and not parsed.entries:
-            print(f"[generalist] impossibile leggere risultati per '{query}': "
+            print(f"[ATTENZIONE] [generalist] Impossibile leggere risultati per la query '{query}': "
                   f"{parsed.get('bozo_exception')}")
             continue
 
@@ -44,4 +44,10 @@ def fetch_generalist_articles(queries: list[str] | None = None) -> list[dict]:
                 "acquisition_mode": "generalista",
                 "rss_summary": entry.get("summary"),
             })
+
+    if not articles:
+        print("[ATTENZIONE] [generalist] Nessun articolo recuperato da Google News RSS")
+    else:
+        print(f"[INFO] [generalist] Acquisizione generalista completata: {len(articles)} articoli estratti")
+
     return articles

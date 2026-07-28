@@ -8,8 +8,15 @@ from src.monitoring.checker import run_monitoring_cycle
 
 
 def run() -> None:
-    session = get_session()
-    run_monitoring_cycle(session)
+    print("[INFO] [pipeline] Avvio della pipeline di monitoraggio...")
+    try:
+        session = get_session()
+        run_monitoring_cycle(session)
+    except Exception as exc:
+        msg = f"[ERRORE GRAVE] [pipeline] Impossibile completare la pipeline di monitoraggio: {exc}"
+        print(msg)
+        raise RuntimeError(msg) from exc
+    print("[INFO] [pipeline] Pipeline di monitoraggio completata con successo")
 
 
 if __name__ == "__main__":
