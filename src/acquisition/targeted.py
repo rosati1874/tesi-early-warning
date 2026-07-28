@@ -6,12 +6,39 @@ del primo run reale, ed eventualmente corretti.
 """
 from datetime import datetime, timezone
 import feedparser
+import requests
+
+from src.config import HTTP_USER_AGENT, REQUEST_TIMEOUT_SECONDS
 
 TARGETED_FEEDS = [
     {"source": "openonline", "url": "https://www.open.online/feed/"},
     {"source": "ilpost", "url": "https://www.ilpost.it/feed/"},
     {"source": "linkiesta", "url": "https://www.linkiesta.it/feed/"},
 ]
+
+
+def _parse_feed(url: str):
+    """Legge un feed RSS in modo robusto.
+
+    feedparser.parse(url) a volte fallisce ("mismatched tag") su feed che
+    in realtà sono leggibili: capita quando il server risponde in modo
+    diverso a client senza User-Agent da browser, o restituisce contenuto
+    leggermente malformato. Recuperiamo esplicitamente i byte con requests
+    (User-Agent da browser) e li passiamo a feedparser, più tollerante
+    quando riceve direttamente il contenuto invece dell'URL.
+    """
+    try:
+        resp = requests.get(
+            url,
+            headers={"User-Agent": HTTP_USER_AGENT},
+            timeout=REQUEST_TIMEOUT_SECONDS,
+        )
+        resp.raise_for_status()
+        return feedparser.parse(resp.content)
+    except requests.RequestException as exc:
+        print(f"[targeted] errore HTTP nel recupero del feed {url}: {exc}")
+        # ultimo tentativo: lasciare fare tutto a feedparser
+        return feedparser.parse(url)
 
 
 def fetch_targeted_articles() -> list[dict]:
@@ -23,8 +50,8 @@ def fetch_targeted_articles() -> list[dict]:
     """
     articles = []
     for feed_cfg in TARGETED_FEEDS:
-        parsed = feedparser.parse(feed_cfg["url"])
-        if parsed.bozo and not parsed.entries:
+        parsed = _parse_feed(feed_cfg["url"])
+        if not parsed.entries:
             print(f"[targeted] impossibile leggere il feed {feed_cfg['url']}: "
                   f"{parsed.get('bozo_exception')}")
             continue

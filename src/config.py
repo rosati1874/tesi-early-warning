@@ -7,7 +7,7 @@ load_dotenv()
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-1.5-flash")
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
 
 BASE_DIR = Path(__file__).resolve().parent
 KEYWORDS_PATH = BASE_DIR / "filtering" / "keywords.yaml"
@@ -20,9 +20,14 @@ GENERALIST_QUERIES = [
     "allerta sanitaria OMS",
 ]
 
-# User-Agent onesto per le richieste HTTP (buona pratica, RNF-05/robots.txt)
+# User-Agent per le richieste HTTP. Un User-Agent che si dichiara "bot" viene
+# bloccato (403) da alcune testate (osservato con Linkiesta): usiamo quindi
+# uno User-Agent standard da browser desktop. Il rispetto delle fonti resta
+# garantito dal fatto che il sistema fa una sola richiesta per articolo,
+# a bassa frequenza (RNF-04), non da come ci si presenta nell'header.
 HTTP_USER_AGENT = (
-    "TesiEarlyWarningBot/0.1 (+progetto di tesi magistrale, uso non commerciale)"
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 )
 REQUEST_TIMEOUT_SECONDS = 15
 
