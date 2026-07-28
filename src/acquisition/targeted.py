@@ -4,6 +4,7 @@ ATTENZIONE: gli URL dei feed sotto sono placeholder plausibili.
 Vanno verificati manualmente (spesso <sito>/feed o <sito>/rss) prima
 del primo run reale, ed eventualmente corretti.
 """
+import re
 from datetime import datetime, timezone
 import feedparser
 import requests
@@ -16,25 +17,20 @@ TARGETED_FEEDS = [
     {"source": "linkiesta", "url": "https://www.linkiesta.it/feed/"},
 ]
 
+# Un simbolo "&" scritto da solo (non seguito da un codice valido come
+# &amp; o &#39;) non è XML corretto e manda in errore i parser rigorosi.
+# È il difetto più comune nei feed "leggermente rotti". Questa regex trova
+# solo i "&" scritti male e li ripara, senza toccare quelli già corretti.
+_BARE_AMPERSAND = re.compile(r"&(?!amp;|lt;|gt;|quot;|apos;|#\d+;|#x[0-9a-fA-F]+;)")
 
-def _parse_feed(url: str):
-    """Legge un feed RSS, con un tentativo di recupero in caso di errore.
 
-    Metodo principale: feedparser.parse(url) direttamente — è il metodo che
-    in pratica funziona meglio con le testate italiane monitorate (alcuni
-    siti bloccano invece le richieste fatte con la libreria "requests" e
-    intestazioni da browser, paradossalmente più sospette agli occhi dei
-    sistemi anti-bot rispetto al comportamento "onesto" di feedparser).
+def _sanitize_xml(raw_bytes: bytes) -> bytes:
+    text = raw_bytes.decode("utf-8", errors="replace")
+    fixed = _BARE_AMPERSAND.sub("&amp;", text)
+    return fixed.encode("utf-8")
 
-    Se il primo tentativo fallisce (es. XML malformato, errore di rete),
-    si tenta un secondo giro con intestazioni più complete da browser: è
-    un tentativo di recupero per problemi occasionali/temporanei, non una
-    soluzione garantita contro un sito che blocchi sistematicamente.
-    """
-    parsed = feedparser.parse(url)
-    if parsed.entries:
-        return parsed
 
+def _fetch_raw(url: str) -> bytes | None:
     try:
         resp = requests.get(
             url,
@@ -46,10 +42,43 @@ def _parse_feed(url: str):
             timeout=REQUEST_TIMEOUT_SECONDS,
         )
         resp.raise_for_status()
-        return feedparser.parse(resp.content)
+        return resp.content
     except requests.RequestException as exc:
         print(f"[targeted] errore HTTP nel recupero del feed {url}: {exc}")
-        return parsed  # restituisco comunque il primo risultato (probabilmente vuoto)
+        return None
+
+
+def _parse_feed(url: str):
+    """Legge un feed RSS, con due tentativi di recupero in caso di errore.
+
+    1. feedparser.parse(url) direttamente — funziona nella maggior parte
+       dei casi ed è il metodo meno soggetto a blocchi anti-bot.
+    2. Se fallisce: nuovo download con intestazioni da browser (alcuni
+       fallimenti sono dovuti a problemi di rete temporanei).
+    3. Se fallisce ANCHE questo: si presume un XML malformato nel feed
+       stesso (es. un "&" scritto in modo scorretto, osservato con Il
+       Post) e si tenta una riparazione automatica prima di un ultimo
+       tentativo di lettura.
+    """
+    parsed = feedparser.parse(url)
+    if parsed.entries:
+        return parsed
+
+    raw = _fetch_raw(url)
+    if raw:
+        parsed_retry = feedparser.parse(raw)
+        if parsed_retry.entries:
+            return parsed_retry
+
+        # ultimo tentativo: ripara il difetto XML più comune e riprova
+        sanitized = _sanitize_xml(raw)
+        parsed_sanitized = feedparser.parse(sanitized)
+        if parsed_sanitized.entries:
+            print(f"[targeted] feed {url} letto dopo riparazione XML automatica")
+            return parsed_sanitized
+        return parsed_sanitized
+
+    return parsed
 
 
 def fetch_targeted_articles() -> list[dict]:
