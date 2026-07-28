@@ -15,6 +15,13 @@ TARGETED_FEEDS = [
     {"source": "openonline", "url": "https://www.open.online/feed/"},
     {"source": "ilpost", "url": "https://www.ilpost.it/feed/"},
     {"source": "linkiesta", "url": "https://www.linkiesta.it/feed/"},
+    {"source": "ansa_salute", "url": "https://www.ansa.it/canale_saluteebenessere/notizie/saluteebenessere_rss.xml"},
+    {"source": "repubblica", "url": "https://www.repubblica.it/rss/homepage/rss2.0.xml"},
+    # ATTENZIONE: indirizzo dedotto dallo schema usato da Adnkronos per le
+    # altre sezioni (RSS_Cronaca.xml, RSS_Economia.xml, verificati) — non
+    # confermato con certezza. Se il primo run lo segnala come illeggibile,
+    # va cercato manualmente sul sito o rimosso dalla lista.
+    {"source": "adnkronos_salute", "url": "https://www.adnkronos.com/RSS_Salute.xml"},
 ]
 
 # Un simbolo "&" scritto da solo (non seguito da un codice valido come
