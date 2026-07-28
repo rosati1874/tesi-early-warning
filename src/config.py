@@ -9,6 +9,16 @@ DATABASE_URL = os.environ.get("DATABASE_URL")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
 
+# Interruttore per la classificazione LLM: quando è "false" (default),
+# la pipeline raccoglie e salva comunque gli articoli, ma salta la
+# chiamata a Gemini. Utile per continuare a lavorare sull'acquisizione
+# quando si esaurisce la quota gratuita, senza modificare il codice:
+# basta creare/aggiornare la variabile ENABLE_LLM_CLASSIFICATION nei
+# secrets/variables di GitHub (valore "true" per riattivarla).
+ENABLE_LLM_CLASSIFICATION = os.environ.get(
+    "ENABLE_LLM_CLASSIFICATION", "false"
+).lower() == "true"
+
 BASE_DIR = Path(__file__).resolve().parent
 KEYWORDS_PATH = BASE_DIR / "filtering" / "keywords.yaml"
 

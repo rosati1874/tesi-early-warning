@@ -14,6 +14,7 @@ from src.acquisition.generalist import fetch_generalist_articles
 from src.parsing.extractor import extract_article_text
 from src.filtering.keywords import passes_keyword_filter
 from src.classification.llm_classifier import classify
+from src.config import ENABLE_LLM_CLASSIFICATION
 
 
 def run() -> None:
@@ -52,7 +53,7 @@ def run() -> None:
             "justification": None,
             "llm_model": None,
         }
-        if passed_filter:
+        if passed_filter and ENABLE_LLM_CLASSIFICATION:
             classification = classify(raw.get("title", ""), text)
 
         article = Article(
