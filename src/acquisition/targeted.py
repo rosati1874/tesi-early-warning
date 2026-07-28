@@ -5,11 +5,11 @@ Vanno verificati manualmente (spesso <sito>/feed o <sito>/rss) prima
 del primo run reale, ed eventualmente corretti.
 """
 import re
+import urllib.request
 from datetime import datetime, timezone
 import feedparser
-import requests
 
-from src.config import HTTP_USER_AGENT, REQUEST_TIMEOUT_SECONDS
+from src.config import REQUEST_TIMEOUT_SECONDS
 
 TARGETED_FEEDS = [
     {"source": "openonline", "url": "https://www.open.online/feed/"},
@@ -23,6 +23,12 @@ TARGETED_FEEDS = [
 # solo i "&" scritti male e li ripara, senza toccare quelli già corretti.
 _BARE_AMPERSAND = re.compile(r"&(?!amp;|lt;|gt;|quot;|apos;|#\d+;|#x[0-9a-fA-F]+;)")
 
+# Stesso User-Agent usato internamente da feedparser: lo scarichiamo "a
+# mano" solo per poter riparare il contenuto, ma presentandoci nello
+# stesso modo discreto che il sito non blocca (a differenza di un
+# User-Agent da browser con la libreria requests, osservato bloccato).
+_FEEDPARSER_USER_AGENT = "UniversalFeedParser/6.0.11 +https://github.com/kurtmckee/feedparser/"
+
 
 def _sanitize_xml(raw_bytes: bytes) -> bytes:
     text = raw_bytes.decode("utf-8", errors="replace")
@@ -32,33 +38,24 @@ def _sanitize_xml(raw_bytes: bytes) -> bytes:
 
 def _fetch_raw(url: str) -> bytes | None:
     try:
-        resp = requests.get(
-            url,
-            headers={
-                "User-Agent": HTTP_USER_AGENT,
-                "Accept": "application/rss+xml, application/xml, text/xml, */*",
-                "Accept-Language": "it-IT,it;q=0.9",
-            },
-            timeout=REQUEST_TIMEOUT_SECONDS,
-        )
-        resp.raise_for_status()
-        return resp.content
-    except requests.RequestException as exc:
-        print(f"[targeted] errore HTTP nel recupero del feed {url}: {exc}")
+        req = urllib.request.Request(url, headers={"User-Agent": _FEEDPARSER_USER_AGENT})
+        with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT_SECONDS) as resp:
+            return resp.read()
+    except Exception as exc:  # noqa: BLE001 - qualunque errore di rete/HTTP
+        print(f"[targeted] errore nel recupero grezzo del feed {url}: {exc}")
         return None
 
 
 def _parse_feed(url: str):
-    """Legge un feed RSS, con due tentativi di recupero in caso di errore.
+    """Legge un feed RSS, con un tentativo di riparazione in caso di errore.
 
     1. feedparser.parse(url) direttamente — funziona nella maggior parte
-       dei casi ed è il metodo meno soggetto a blocchi anti-bot.
-    2. Se fallisce: nuovo download con intestazioni da browser (alcuni
-       fallimenti sono dovuti a problemi di rete temporanei).
-    3. Se fallisce ANCHE questo: si presume un XML malformato nel feed
-       stesso (es. un "&" scritto in modo scorretto, osservato con Il
-       Post) e si tenta una riparazione automatica prima di un ultimo
-       tentativo di lettura.
+       dei casi.
+    2. Se fallisce per XML malformato (non per un blocco di rete): si
+       riscarica il contenuto grezzo con lo stesso User-Agent "discreto"
+       di feedparser (per non incorrere nello stesso blocco anti-bot
+       osservato con intestazioni da browser), si ripara il difetto XML
+       più comune, e si riprova a leggerlo.
     """
     parsed = feedparser.parse(url)
     if parsed.entries:
@@ -66,11 +63,6 @@ def _parse_feed(url: str):
 
     raw = _fetch_raw(url)
     if raw:
-        parsed_retry = feedparser.parse(raw)
-        if parsed_retry.entries:
-            return parsed_retry
-
-        # ultimo tentativo: ripara il difetto XML più comune e riprova
         sanitized = _sanitize_xml(raw)
         parsed_sanitized = feedparser.parse(sanitized)
         if parsed_sanitized.entries:
