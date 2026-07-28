@@ -7,7 +7,7 @@ load_dotenv()
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "")
 
 # Interruttore per la classificazione LLM: quando è "false" (default),
 # la pipeline raccoglie e salva comunque gli articoli, ma salta la
