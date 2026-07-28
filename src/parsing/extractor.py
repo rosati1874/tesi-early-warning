@@ -14,11 +14,18 @@ from bs4 import BeautifulSoup
 from src.config import HTTP_USER_AGENT, REQUEST_TIMEOUT_SECONDS
 
 
+DEFAULT_HEADERS = {
+    "User-Agent": HTTP_USER_AGENT,
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7",
+}
+
+
 def fetch_html(url: str) -> str | None:
     try:
         resp = requests.get(
             url,
-            headers={"User-Agent": HTTP_USER_AGENT},
+            headers=DEFAULT_HEADERS,
             timeout=REQUEST_TIMEOUT_SECONDS,
         )
         resp.raise_for_status()
