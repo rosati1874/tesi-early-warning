@@ -1,0 +1,26 @@
+name: Acquisizione contenuti
+
+on:
+  schedule:
+    # ogni 6 ore (UTC) - tarare in base ai limiti di quota osservati
+    - cron: "0 */6 * * *"
+  workflow_dispatch: {}  # permette anche l'avvio manuale da GitHub
+
+jobs:
+  acquisition:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Installa dipendenze
+        run: pip install -r requirements.txt
+
+      - name: Esegui pipeline di acquisizione
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python -m src.pipeline.run_acquisition
