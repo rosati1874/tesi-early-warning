@@ -16,6 +16,24 @@ from src.classification.prompts import build_classification_prompt
 _configured = False
 _blacklisted_models: set[str] = set()
 
+NON_TEXT_MODEL_KEYWORDS = [
+    "-image",
+    "image",
+    "-tts",
+    "tts",
+    "-audio",
+    "audio",
+    "-vision",
+    "vision",
+    "realtime",
+    "embedding",
+    "imagen",
+    "veo",
+    "sound",
+    "speech",
+    "aqa",
+]
+
 
 def _ensure_configured():
     global _configured
@@ -28,6 +46,60 @@ def _ensure_configured():
         _configured = True
 
 
+def _is_text_generation_model(model_name: str) -> bool:
+    """Restituisce True solo se il modello è dedicato alla generazione/classificazione di testo,
+    escludendo rigorosamente varianti per immagini, tts, audio, vision, embedding o multimodalità speciale.
+    """
+    name = model_name.lower()
+    return not any(kw in name for kw in NON_TEXT_MODEL_KEYWORDS)
+
+
+def _load_blacklisted_models_from_db() -> set[str]:
+    """Carica i modelli inseriti in blacklist nel DB nelle ultime 12 ore."""
+    try:
+        from datetime import datetime, timedelta, timezone
+        from src.db.connection import get_session
+        from src.db.models import BlacklistedModel
+
+        session = get_session()
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=12)
+        rows = (
+            session.query(BlacklistedModel)
+            .filter(BlacklistedModel.blacklisted_at >= cutoff)
+            .all()
+        )
+        session.close()
+        return {r.model_name for r in rows}
+    except Exception:
+        return set()
+
+
+def _blacklist_model(model_name: str, reason: str = ""):
+    """Inserisce un modello nella blacklist in memoria e lo persiste nel database."""
+    _blacklisted_models.add(model_name)
+    try:
+        from datetime import datetime, timezone
+        from src.db.connection import get_session
+        from src.db.models import BlacklistedModel
+
+        session = get_session()
+        existing = session.query(BlacklistedModel).filter_by(model_name=model_name).first()
+        if existing:
+            existing.blacklisted_at = datetime.now(timezone.utc)
+            existing.reason = reason
+        else:
+            bm = BlacklistedModel(
+                model_name=model_name,
+                blacklisted_at=datetime.now(timezone.utc),
+                reason=reason,
+            )
+            session.add(bm)
+        session.commit()
+        session.close()
+    except Exception as exc:
+        print(f"[ATTENZIONE] [llm_classifier] Impossibile persistere blacklist nel DB per '{model_name}': {exc}")
+
+
 def _parse_model_sort_key(model_name: str) -> tuple[bool, bool, bool, float]:
     """Criterio di ordinamento per i modelli Gemini.
 
@@ -36,11 +108,6 @@ def _parse_model_sort_key(model_name: str) -> tuple[bool, bool, bool, float]:
     2. è_variante_flash: True se 'flash' è presente nel nome.
     3. è_versione_stabile: True se non contiene marchi sperimentali o preview ('-exp', 'experimental', '-preview').
     4. versione_numerica: estrae la versione numerica (es. "gemini-3.1-flash-lite" -> 3.1, "gemini-2.5-flash" -> 2.5).
-
-    Ordinando in senso decrescente:
-    - Le varianti 'lite' (es. gemini-3.1-flash-lite, gemini-2.0-flash-lite) hanno priorità assoluta.
-    - Se nessuna variante 'lite' è disponibile, si passa alle varianti 'flash' pienamente supportate.
-    - La versione numerica viene valutata all'interno del proprio gruppo (lite/flash/altri), evitando di scegliere forzatamente modelli non-lite appena usciti con quote molto ridotte.
     """
     name = model_name.lower()
 
@@ -55,30 +122,33 @@ def _parse_model_sort_key(model_name: str) -> tuple[bool, bool, bool, float]:
 
 
 def get_ranked_gemini_models() -> list[str]:
-    """Interroga `genai.list_models()` e restituisce la lista ordinata dei modelli candidati validi,
-    escludendo quelli inseriti nella blacklist (es. perché dismessi o non disponibili per la chiave).
+    """Interroga `genai.list_models()` e restituisce la lista ordinata dei modelli candidati testuali validi,
+    escludendo quelli non testuali (image/tts/vision) e quelli blacklistati (dismessi o in quota esaurita).
     """
+    db_blacklisted = _load_blacklisted_models_from_db()
+    all_blacklisted = _blacklisted_models.union(db_blacklisted)
+
     env_model = os.environ.get("GEMINI_MODEL") or GEMINI_MODEL
     if env_model and env_model.strip():
         m_name = env_model.strip().removeprefix("models/")
-        if m_name not in _blacklisted_models:
+        if m_name not in all_blacklisted:
             return [m_name]
 
     try:
-        # Passa request_options con timeout ed esclude i retry automatici per evitare blocchi trasparenti
         models = list(genai.list_models(request_options={"timeout": 15, "retry": None}))
         supported = [
             m for m in models
             if "generateContent" in getattr(m, "supported_generation_methods", [])
+            and _is_text_generation_model(m.name)
         ]
 
         if supported:
             supported.sort(key=lambda m: _parse_model_sort_key(m.name), reverse=True)
             candidates = [m.name.removeprefix("models/") for m in supported]
-            valid_candidates = [c for c in candidates if c not in _blacklisted_models]
+            valid_candidates = [c for c in candidates if c not in all_blacklisted]
             return valid_candidates
         else:
-            print("[ATTENZIONE] [llm_classifier] Nessun modello con supporto 'generateContent' trovato da list_models().")
+            print("[ATTENZIONE] [llm_classifier] Nessun modello testuale con supporto 'generateContent' trovato da list_models().")
 
     except Exception as exc:
         print(f"[ATTENZIONE] [llm_classifier] Impossibile interrogare list_models(): {exc}.")
@@ -108,7 +178,7 @@ def _is_unavailability_error(exc: Exception) -> bool:
 def classify(title: str, text: str) -> dict:
     """Restituisce un dict con is_epidemic_signal, confidence, disease,
     location, justification. In caso di modello non disponibile o quota esaurita (404 / 429),
-    inserisce il modello in blacklist e ritenta immediatamente con il successivo modello candidato.
+    inserisce il modello in blacklist (in memoria e DB) e ritenta immediatamente con il successivo candidato.
     """
     _ensure_configured()
     candidates = get_ranked_gemini_models()
@@ -129,8 +199,6 @@ def classify(title: str, text: str) -> dict:
     for model_name in list(candidates):
         try:
             model = genai.GenerativeModel(model_name)
-            # Passa request_options per disabilitare i retry automatici del client SDK di Google
-            # in caso di errore 429/quota, permettendo al nostro meccanismo di blacklist e fallback di intervenire subito
             request_options = {"timeout": 15, "retry": None}
             response = model.generate_content(prompt, request_options=request_options)
             raw = response.text.strip()
@@ -150,7 +218,7 @@ def classify(title: str, text: str) -> dict:
         except Exception as exc:  # noqa: BLE001
             if _is_unavailability_error(exc):
                 print(f"[ATTENZIONE] [llm_classifier] Il modello '{model_name}' non è disponibile o quota esaurita ({exc}). Aggiunto alla blacklist, proviamo il successivo candidato...")
-                _blacklisted_models.add(model_name)
+                _blacklist_model(model_name, str(exc))
                 continue
             else:
                 print(f"[ATTENZIONE] [llm_classifier] Errore di classificazione con {model_name} per '{title}': {exc}")

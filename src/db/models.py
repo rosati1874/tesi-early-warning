@@ -58,3 +58,12 @@ class AvailabilityCheck(Base):
     result = Column(Text, nullable=False)  # 'available' | 'removed' | 'access_error'
 
     article = relationship("Article", back_populates="checks")
+
+
+class BlacklistedModel(Base):
+    __tablename__ = "blacklisted_models"
+
+    id = Column(Integer, primary_key=True)
+    model_name = Column(String(100), unique=True, nullable=False)
+    blacklisted_at = Column(TIMESTAMP(timezone=True), default=datetime.utcnow)
+    reason = Column(Text)

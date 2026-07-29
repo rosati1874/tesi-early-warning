@@ -3,6 +3,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from src.config import DATABASE_URL
 
+from src.db.models import Base
+
 _engine = None
 _SessionLocal = None
 
@@ -19,6 +21,8 @@ def get_engine():
             # Verifica la connessione effettiva al database (es. verifica password, host e rete)
             with _engine.connect() as conn:
                 pass
+            # Assicura che le tabelle definite in models.py (es. blacklisted_models) siano create se mancanti
+            Base.metadata.create_all(_engine)
         except Exception as exc:
             msg = f"[ERRORE GRAVE] [db] Impossibile connettersi al database (es. credenziali errate o server irraggiungibile): {exc}"
             print(msg)
