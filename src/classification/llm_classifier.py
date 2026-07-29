@@ -28,28 +28,30 @@ def _ensure_configured():
         _configured = True
 
 
-def _parse_model_sort_key(model_name: str) -> tuple[bool, float, bool]:
-    """Criterio di ordinamento numerico e qualitativo per modelli Gemini.
+def _parse_model_sort_key(model_name: str) -> tuple[bool, bool, bool, float]:
+    """Criterio di ordinamento per i modelli Gemini.
 
-    Restituisce una tupla (è_variante_flash, versione_numerica, è_versione_stabile):
-    - è_variante_flash: True se 'flash' è presente nel nome.
-    - versione_numerica: estrae la versione numerica (es. "gemini-3.0-flash" -> 3.0, "gemini-2.5-flash" -> 2.5).
-    - è_versione_stabile: True se non contiene marchi sperimentali o preview ('-exp', 'experimental', '-preview').
+    Restituisce una tupla (è_variante_lite, è_variante_flash, è_versione_stabile, versione_numerica):
+    1. è_variante_lite: True se 'lite' è presente nel nome (priorità massima per quote gratuite più ampie).
+    2. è_variante_flash: True se 'flash' è presente nel nome.
+    3. è_versione_stabile: True se non contiene marchi sperimentali o preview ('-exp', 'experimental', '-preview').
+    4. versione_numerica: estrae la versione numerica (es. "gemini-3.1-flash-lite" -> 3.1, "gemini-2.5-flash" -> 2.5).
 
-    Ordinando in senso decrescente, questo garantisce che:
-    1. Le varianti Flash vengano sempre preferite a quelle Pro o non-Flash.
-    2. La versione numerica più recente (es. 3.x > 2.x > 1.x) venga sempre scelta per prima.
-    3. A pari versione, i modelli stabili vengano preferiti a quelli sperimentali.
+    Ordinando in senso decrescente:
+    - Le varianti 'lite' (es. gemini-3.1-flash-lite, gemini-2.0-flash-lite) hanno priorità assoluta.
+    - Se nessuna variante 'lite' è disponibile, si passa alle varianti 'flash' pienamente supportate.
+    - La versione numerica viene valutata all'interno del proprio gruppo (lite/flash/altri), evitando di scegliere forzatamente modelli non-lite appena usciti con quote molto ridotte.
     """
     name = model_name.lower()
 
     match = re.search(r"gemini-(\d+(?:\.\d+)?)", name)
     version = float(match.group(1)) if match else 0.0
 
+    is_lite = "lite" in name
     is_flash = "flash" in name
     is_stable = not any(tag in name for tag in ["-exp", "experimental", "-preview"])
 
-    return (is_flash, version, is_stable)
+    return (is_lite, is_flash, is_stable, version)
 
 
 def get_ranked_gemini_models() -> list[str]:
