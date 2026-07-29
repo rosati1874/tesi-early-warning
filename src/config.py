@@ -43,13 +43,7 @@ HTTP_USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 )
-import socket
-
 REQUEST_TIMEOUT_SECONDS = 15
-# Imposta il timeout predefinito per tutti i socket di rete in Python.
-# Garantisce che qualsiasi libreria terza (es. googlenewsdecoder, feedparser)
-# non possa mai rimanere bloccata all'infinito in attesa di risposta da server remoti.
-socket.setdefaulttimeout(REQUEST_TIMEOUT_SECONDS)
 
 if not DATABASE_URL:
     print("[ATTENZIONE] [config] DATABASE_URL non impostata (vedi .env.example)")
