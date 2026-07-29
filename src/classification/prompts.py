@@ -32,7 +32,7 @@ Testo articolo:
 
 
 def build_classification_prompt(title: str, text: str) -> str:
-    # Il testo viene troncato per restare entro limiti di contesto/quota
-    # ragionevoli per un free tier.
-    truncated_text = (text or "")[:6000]
+    # Il testo viene troncato a 3000 caratteri per restare entro limiti di contesto/quota
+    # ed accelerare i tempi di elaborazione.
+    truncated_text = (text or "")[:3000]
     return CLASSIFICATION_PROMPT_TEMPLATE.format(title=title or "", text=truncated_text)

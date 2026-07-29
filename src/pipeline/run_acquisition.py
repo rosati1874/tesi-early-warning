@@ -81,6 +81,7 @@ def run() -> None:
                 llm_location=None,
                 llm_justification=None,
                 llm_model=None,
+                classification_attempts=0,
             )
             session.add(article)
             session.commit()
@@ -93,7 +94,7 @@ def run() -> None:
 
     print(f"[INFO] [pipeline] {new_count} nuovi articoli salvati nel database")
 
-    # Fase di classificazione LLM (priorità agli articoli in arretrato/più vecchi)
+    # Fase di classificazione LLM (priorità agli articoli in arretrato con meno tentativi falliti)
     if not ENABLE_LLM_CLASSIFICATION:
         print("[INFO] [pipeline] Classificazione LLM disattivata (ENABLE_LLM_CLASSIFICATION=false)")
     elif MAX_LLM_CLASSIFICATIONS_PER_RUN <= 0:
@@ -104,8 +105,9 @@ def run() -> None:
             .filter(
                 Article.passed_keyword_filter.is_(True),
                 Article.is_epidemic_signal.is_(None),
+                Article.classification_attempts < 3,  # Esclude articoli con 3 o più tentativi falliti
             )
-            .order_by(Article.first_seen_at.asc())  # Vengono classificati prima gli articoli più vecchi (arretrato)
+            .order_by(Article.classification_attempts.asc(), Article.first_seen_at.asc())
             .limit(MAX_LLM_CLASSIFICATIONS_PER_RUN)
             .all()
         )
@@ -116,6 +118,10 @@ def run() -> None:
             print(f"[INFO] [pipeline] Trovati {len(pending_articles)} articoli in attesa di classificazione (limite max per run: {MAX_LLM_CLASSIFICATIONS_PER_RUN})")
             classified_count = 0
             for art in pending_articles:
+                # Incrementa il contatore dei tentativi per evitare che articoli problematici blocchino la coda
+                art.classification_attempts = (art.classification_attempts or 0) + 1
+                session.commit()
+
                 try:
                     res = classify(art.title or "", art.raw_text or "")
                     if res.get("is_epidemic_signal") is not None:
@@ -128,7 +134,7 @@ def run() -> None:
                         session.commit()
                         classified_count += 1
                 except Exception as exc:
-                    print(f"[ATTENZIONE] [pipeline] Errore nella classificazione dell'articolo ID {art.id}: {exc}")
+                    print(f"[ATTENZIONE] [pipeline] Errore nella classificazione dell'articolo ID {art.id} (tentativo {art.classification_attempts}/3): {exc}")
                     session.rollback()
 
             print(f"[INFO] [pipeline] Classificazione LLM completata: {classified_count}/{len(pending_articles)} articoli classificati")

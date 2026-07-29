@@ -13,6 +13,7 @@ import feedparser
 from googlenewsdecoder import new_decoderv1
 
 from src.config import GENERALIST_QUERIES
+from src.parsing.extractor import clean_rss_summary
 
 GOOGLE_NEWS_RSS_TEMPLATE = (
     "https://news.google.com/rss/search?q={query}&hl=it-IT&gl=IT&ceid=IT:it"
@@ -66,7 +67,7 @@ def fetch_generalist_articles(queries: list[str] | None = None) -> list[dict]:
                 "title": entry.get("title"),
                 "published_at": published_at,
                 "acquisition_mode": "generalista",
-                "rss_summary": entry.get("summary"),
+                "rss_summary": clean_rss_summary(entry.get("summary")),
             })
 
     if not articles:

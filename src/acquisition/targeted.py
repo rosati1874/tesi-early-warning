@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 import feedparser
 
 from src.config import REQUEST_TIMEOUT_SECONDS
+from src.parsing.extractor import clean_rss_summary
 
 TARGETED_FEEDS = [
     {"source": "openonline", "url": "https://www.open.online/feed/"},
@@ -105,7 +106,7 @@ def fetch_targeted_articles() -> list[dict]:
                 "title": entry.get("title"),
                 "published_at": published_at,
                 "acquisition_mode": "mirato",
-                "rss_summary": entry.get("summary"),
+                "rss_summary": clean_rss_summary(entry.get("summary")),
             })
 
     if not articles:

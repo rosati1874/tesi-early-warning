@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS articles (
     llm_location           TEXT,
     llm_justification      TEXT,
     llm_model               TEXT,             -- es. 'gemini-1.5-flash'
+    classification_attempts INTEGER NOT NULL DEFAULT 0,
     status          TEXT NOT NULL DEFAULT 'active', -- 'active' | 'removed' | 'error'
     last_checked_at TIMESTAMPTZ
 );

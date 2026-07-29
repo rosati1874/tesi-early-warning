@@ -7,11 +7,30 @@ scaffold: va aggiunto solo se in pratica si incontrano pagine che
 richiedono rendering JavaScript (RF-03 lo prevede come possibilità, non
 come requisito sempre attivo).
 """
+import re
 import requests
 import trafilatura
 from bs4 import BeautifulSoup
 
 from src.config import HTTP_USER_AGENT, REQUEST_TIMEOUT_SECONDS
+
+
+def clean_rss_summary(raw_html: str | None) -> str | None:
+    """Rimuove tag HTML e firme automatiche di WordPress da un riassunto RSS."""
+    if not raw_html or not raw_html.strip():
+        return None
+
+    soup = BeautifulSoup(raw_html, "html.parser")
+    text = soup.get_text(separator=" ", strip=True)
+
+    # Rimuove la firma standard di WordPress "L'articolo [Titolo] proviene da [Nome sito]."
+    pattern = r"L['’]articolo\s+.*?\s+proviene\s+da\s+.*$"
+    text = re.sub(pattern, "", text, flags=re.IGNORECASE | re.DOTALL).strip()
+
+    # Normalizza gli spazi intermedi
+    text = re.sub(r"\s+", " ", text).strip()
+
+    return text if text else None
 
 
 DEFAULT_HEADERS = {
