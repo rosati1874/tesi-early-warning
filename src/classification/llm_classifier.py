@@ -54,18 +54,38 @@ def _is_text_generation_model(model_name: str) -> bool:
     return not any(kw in name for kw in NON_TEXT_MODEL_KEYWORDS)
 
 
+def _is_per_minute_quota_error(reason: Exception | str) -> bool:
+    """Verifica se l'errore è dovuto al superamento del limite al minuto (RPM), che dura pochi secondi/minuti."""
+    msg = str(reason).lower()
+    pm_phrases = [
+        "generaterequestsperminute",
+        "requestsperminute",
+        "per minute",
+        "perminute",
+        "rpm",
+    ]
+    pd_phrases = [
+        "generaterequestsperday",
+        "requestsperday",
+        "per day",
+        "perday",
+        "rpd",
+    ]
+    return any(p in msg for p in pm_phrases) and not any(p in msg for p in pd_phrases)
+
+
 def _load_blacklisted_models_from_db() -> set[str]:
-    """Carica i modelli inseriti in blacklist nel DB nelle ultime 12 ore."""
+    """Carica dal DB solo i modelli la cui blacklist non è ancora scaduta (expires_at > now)."""
     try:
-        from datetime import datetime, timedelta, timezone
+        from datetime import datetime, timezone
         from src.db.connection import get_session
         from src.db.models import BlacklistedModel
 
         session = get_session()
-        cutoff = datetime.now(timezone.utc) - timedelta(hours=12)
+        now = datetime.now(timezone.utc)
         rows = (
             session.query(BlacklistedModel)
-            .filter(BlacklistedModel.blacklisted_at >= cutoff)
+            .filter(BlacklistedModel.expires_at > now)
             .all()
         )
         session.close()
@@ -75,23 +95,39 @@ def _load_blacklisted_models_from_db() -> set[str]:
 
 
 def _blacklist_model(model_name: str, reason: str = ""):
-    """Inserisce un modello nella blacklist in memoria e lo persiste nel database."""
+    """Inserisce un modello nella blacklist (in memoria e DB).
+
+    Se l'errore indica un limite al minuto (RPM), il TTL è di 2 minuti.
+    Se l'errore indica un limite giornaliero (RPD) o modello 404, il TTL è di 12 ore (720 minuti).
+    """
     _blacklisted_models.add(model_name)
+
+    is_rpm = _is_per_minute_quota_error(reason)
+    ttl_minutes = 2 if is_rpm else 720
+    ttl_desc = "2 minuti (limite RPM al minuto)" if is_rpm else "12 ore (limite RPD giornaliero o 404)"
+
+    print(f"[INFO] [llm_classifier] Modello '{model_name}' inserito in blacklist per {ttl_desc}")
+
     try:
-        from datetime import datetime, timezone
+        from datetime import datetime, timedelta, timezone
         from src.db.connection import get_session
         from src.db.models import BlacklistedModel
 
         session = get_session()
+        now = datetime.now(timezone.utc)
+        expires_at = now + timedelta(minutes=ttl_minutes)
+
         existing = session.query(BlacklistedModel).filter_by(model_name=model_name).first()
         if existing:
-            existing.blacklisted_at = datetime.now(timezone.utc)
-            existing.reason = reason
+            existing.blacklisted_at = now
+            existing.expires_at = expires_at
+            existing.reason = str(reason)
         else:
             bm = BlacklistedModel(
                 model_name=model_name,
-                blacklisted_at=datetime.now(timezone.utc),
-                reason=reason,
+                blacklisted_at=now,
+                expires_at=expires_at,
+                reason=str(reason),
             )
             session.add(bm)
         session.commit()

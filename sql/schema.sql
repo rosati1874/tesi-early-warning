@@ -40,3 +40,13 @@ CREATE TABLE IF NOT EXISTS availability_checks (
 CREATE INDEX IF NOT EXISTS idx_articles_signal ON articles (is_epidemic_signal);
 CREATE INDEX IF NOT EXISTS idx_article_versions_article_id ON article_versions (article_id);
 CREATE INDEX IF NOT EXISTS idx_availability_checks_article_id ON availability_checks (article_id);
+
+CREATE TABLE IF NOT EXISTS blacklisted_models (
+    id             SERIAL PRIMARY KEY,
+    model_name     VARCHAR(100) UNIQUE NOT NULL,
+    blacklisted_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    expires_at     TIMESTAMPTZ NOT NULL,
+    reason         TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_blacklisted_models_expires ON blacklisted_models (expires_at);

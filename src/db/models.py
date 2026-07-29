@@ -66,4 +66,5 @@ class BlacklistedModel(Base):
     id = Column(Integer, primary_key=True)
     model_name = Column(String(100), unique=True, nullable=False)
     blacklisted_at = Column(TIMESTAMP(timezone=True), default=datetime.utcnow)
+    expires_at = Column(TIMESTAMP(timezone=True), nullable=False)
     reason = Column(Text)
