@@ -14,7 +14,7 @@ from src.acquisition.generalist import fetch_generalist_articles
 from src.parsing.extractor import extract_article_text
 from src.filtering.keywords import passes_keyword_filter
 from src.classification.llm_classifier import classify
-from src.config import ENABLE_LLM_CLASSIFICATION
+from src.config import ENABLE_LLM_CLASSIFICATION, MAX_LLM_CLASSIFICATIONS_PER_RUN
 
 
 def run() -> None:
@@ -65,17 +65,7 @@ def run() -> None:
             if not passed_filter:
                 print(f"[INFO] [pipeline] Articolo scartato dal filtro keyword: '{raw.get('title')}'")
 
-            classification = {
-                "is_epidemic_signal": None,
-                "confidence": None,
-                "disease": None,
-                "location": None,
-                "justification": None,
-                "llm_model": None,
-            }
-            if passed_filter and ENABLE_LLM_CLASSIFICATION:
-                classification = classify(raw.get("title", ""), text)
-
+            # Salva l'articolo nel database con is_epidemic_signal=None (in attesa di classificazione)
             article = Article(
                 url=raw["url"],
                 source=raw["source"],
@@ -85,12 +75,12 @@ def run() -> None:
                 first_seen_at=datetime.now(timezone.utc),
                 raw_text=text,
                 passed_keyword_filter=passed_filter,
-                is_epidemic_signal=classification["is_epidemic_signal"],
-                llm_confidence=classification["confidence"],
-                llm_disease=classification["disease"],
-                llm_location=classification["location"],
-                llm_justification=classification["justification"],
-                llm_model=classification["llm_model"],
+                is_epidemic_signal=None,
+                llm_confidence=None,
+                llm_disease=None,
+                llm_location=None,
+                llm_justification=None,
+                llm_model=None,
             )
             session.add(article)
             session.commit()
@@ -101,7 +91,49 @@ def run() -> None:
             session.rollback()
             raise RuntimeError(msg) from exc
 
-    print(f"[INFO] [pipeline] Pipeline di acquisizione completata con successo: {new_count} nuovi articoli salvati nel database")
+    print(f"[INFO] [pipeline] {new_count} nuovi articoli salvati nel database")
+
+    # Fase di classificazione LLM (priorità agli articoli in arretrato/più vecchi)
+    if not ENABLE_LLM_CLASSIFICATION:
+        print("[INFO] [pipeline] Classificazione LLM disattivata (ENABLE_LLM_CLASSIFICATION=false)")
+    elif MAX_LLM_CLASSIFICATIONS_PER_RUN <= 0:
+        print(f"[INFO] [pipeline] Limite classificazioni per esecuzione impostato a {MAX_LLM_CLASSIFICATIONS_PER_RUN}, classificazione saltata")
+    else:
+        pending_articles = (
+            session.query(Article)
+            .filter(
+                Article.passed_keyword_filter.is_(True),
+                Article.is_epidemic_signal.is_(None),
+            )
+            .order_by(Article.first_seen_at.asc())  # Vengono classificati prima gli articoli più vecchi (arretrato)
+            .limit(MAX_LLM_CLASSIFICATIONS_PER_RUN)
+            .all()
+        )
+
+        if not pending_articles:
+            print("[INFO] [pipeline] Nessun articolo in attesa di classificazione LLM")
+        else:
+            print(f"[INFO] [pipeline] Trovati {len(pending_articles)} articoli in attesa di classificazione (limite max per run: {MAX_LLM_CLASSIFICATIONS_PER_RUN})")
+            classified_count = 0
+            for art in pending_articles:
+                try:
+                    res = classify(art.title or "", art.raw_text or "")
+                    if res.get("is_epidemic_signal") is not None:
+                        art.is_epidemic_signal = res["is_epidemic_signal"]
+                        art.llm_confidence = res.get("confidence")
+                        art.llm_disease = res.get("disease")
+                        art.llm_location = res.get("location")
+                        art.llm_justification = res.get("justification")
+                        art.llm_model = res.get("llm_model")
+                        session.commit()
+                        classified_count += 1
+                except Exception as exc:
+                    print(f"[ATTENZIONE] [pipeline] Errore nella classificazione dell'articolo ID {art.id}: {exc}")
+                    session.rollback()
+
+            print(f"[INFO] [pipeline] Classificazione LLM completata: {classified_count}/{len(pending_articles)} articoli classificati")
+
+    print("[INFO] [pipeline] Pipeline di acquisizione completata con successo")
 
 
 if __name__ == "__main__":

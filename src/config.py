@@ -19,6 +19,10 @@ ENABLE_LLM_CLASSIFICATION = os.environ.get(
     "ENABLE_LLM_CLASSIFICATION", "false"
 ).lower() == "true"
 
+MAX_LLM_CLASSIFICATIONS_PER_RUN = int(
+    os.environ.get("MAX_LLM_CLASSIFICATIONS_PER_RUN", "10")
+)
+
 BASE_DIR = Path(__file__).resolve().parent
 KEYWORDS_PATH = BASE_DIR / "filtering" / "keywords.yaml"
 
