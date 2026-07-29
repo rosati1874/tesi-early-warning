@@ -171,7 +171,7 @@ def get_ranked_gemini_models() -> list[str]:
             return [m_name]
 
     try:
-        models = list(genai.list_models(request_options={"timeout": 15, "retry": None}))
+        models = list(genai.list_models(request_options={"timeout": 25, "retry": None}))
         supported = [
             m for m in models
             if "generateContent" in getattr(m, "supported_generation_methods", [])
@@ -235,7 +235,7 @@ def classify(title: str, text: str) -> dict:
     for model_name in list(candidates):
         try:
             model = genai.GenerativeModel(model_name)
-            request_options = {"timeout": 15, "retry": None}
+            request_options = {"timeout": 25, "retry": None}
             response = model.generate_content(prompt, request_options=request_options)
             raw = response.text.strip()
             raw = raw.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
