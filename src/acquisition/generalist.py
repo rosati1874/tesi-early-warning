@@ -10,6 +10,7 @@ per l'acquisizione generalista in questo scaffold.
 from datetime import datetime, timezone
 from urllib.parse import quote_plus
 import feedparser
+from googlenewsdecoder import new_decoderv1
 
 from src.config import GENERALIST_QUERIES
 
@@ -18,8 +19,28 @@ GOOGLE_NEWS_RSS_TEMPLATE = (
 )
 
 
+def _resolve_article_url(raw_url: str | None) -> str | None:
+    """Decodifica un link cifrato di Google News nell'URL reale di destinazione dell'articolo.
+    In caso di errore, logga un avviso [ATTENZIONE] e restituisce l'URL originale come riserva.
+    """
+    if not raw_url:
+        return None
+
+    if "news.google.com" in raw_url:
+        try:
+            res = new_decoderv1(raw_url)
+            if isinstance(res, dict) and res.get("status") and res.get("decoded_url"):
+                return res["decoded_url"]
+            elif isinstance(res, str) and res.startswith("http"):
+                return res
+        except Exception as exc:
+            print(f"[ATTENZIONE] [generalist] Impossibile decodificare URL Google News '{raw_url}': {exc}")
+
+    return raw_url
+
+
 def fetch_generalist_articles(queries: list[str] | None = None) -> list[dict]:
-    """Interroga Google News RSS per ciascuna query e restituisce articoli grezzi."""
+    """Interroga Google News RSS per ciascuna query e restituisce articoli grezzi con URL decodificati."""
     queries = queries or GENERALIST_QUERIES
     articles = []
 
@@ -36,8 +57,11 @@ def fetch_generalist_articles(queries: list[str] | None = None) -> list[dict]:
             if getattr(entry, "published_parsed", None):
                 published_at = datetime(*entry.published_parsed[:6], tzinfo=timezone.utc)
 
+            raw_link = entry.get("link")
+            resolved_url = _resolve_article_url(raw_link)
+
             articles.append({
-                "url": entry.get("link"),
+                "url": resolved_url,
                 "source": "google_news",
                 "title": entry.get("title"),
                 "published_at": published_at,
