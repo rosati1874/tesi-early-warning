@@ -26,3 +26,9 @@ jobs:
           ENABLE_LLM_CLASSIFICATION: ${{ vars.ENABLE_LLM_CLASSIFICATION }}
           PYTHONUNBUFFERED: "1"
         run: python -u -m src.pipeline.run_acquisition
+
+      - name: Esegui diagnostica conteggi DB Supabase
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          PYTHONUNBUFFERED: "1"
+        run: python -u scripts/check_db_stats.py
