@@ -54,23 +54,54 @@ def fetch_html(url: str) -> str | None:
         return None
 
 
+def fetch_via_jina_reader(url: str) -> str | None:
+    """Tenta il recupero del contenuto dell'articolo tramite il servizio gratuito Jina AI Reader (https://r.jina.ai/).
+
+    Supera blocchi 403 Forbidden ed anti-bot su testate come Linkiesta e Repubblica senza richiedere chiave API.
+    """
+    jina_url = f"https://r.jina.ai/{url}"
+    try:
+        resp = requests.get(
+            jina_url,
+            headers=DEFAULT_HEADERS,
+            timeout=REQUEST_TIMEOUT_SECONDS,
+        )
+        if resp.status_code == 200 and resp.text and len(resp.text.strip()) > 200:
+            print(f"[INFO] [extractor] Contenuto recuperato con successo tramite Jina AI Reader per {url} ({len(resp.text)} caratteri)")
+            return resp.text.strip()
+    except requests.RequestException as exc:
+        print(f"[ATTENZIONE] [extractor] Errore durante il recupero via Jina AI Reader per {url}: {exc}")
+
+    return None
+
+
 def extract_article_text(url: str, html: str | None = None) -> str | None:
-    """Restituisce il testo principale dell'articolo, o None se non estraibile."""
-    html = html or fetch_html(url)
-    if not html:
-        return None
+    """Restituisce il testo principale dell'articolo.
 
-    text = trafilatura.extract(html, favor_recall=True)
-    if text:
-        return text.strip()
+    Livelli di estrazione (RF-03):
+    1. Download diretto HTML + trafilatura (con fallback a BeautifulSoup).
+    2. Se il download diretto fallisce (es. 403 Forbidden o testo < 200 car), tenta Jina AI Reader (https://r.jina.ai/).
+    3. Se anche Jina AI Reader fallisce, restituisce None (permettendo il fallback a rss_summary).
+    """
+    html_content = html or fetch_html(url)
+    if html_content:
+        text = trafilatura.extract(html_content, favor_recall=True)
+        if text and len(text.strip()) > 200:
+            return text.strip()
 
-    # fallback grezzo con BeautifulSoup: concatena i paragrafi <p>
-    soup = BeautifulSoup(html, "lxml")
-    paragraphs = [p.get_text(strip=True) for p in soup.find_all("p")]
-    fallback_text = "\n".join(p for p in paragraphs if p)
-    if fallback_text:
-        print(f"[INFO] [extractor] Utilizzato fallback BeautifulSoup per {url}")
-        return fallback_text
+        # fallback grezzo con BeautifulSoup: concatena i paragrafi <p>
+        soup = BeautifulSoup(html_content, "lxml")
+        paragraphs = [p.get_text(strip=True) for p in soup.find_all("p")]
+        fallback_text = "\n".join(p for p in paragraphs if p)
+        if fallback_text and len(fallback_text.strip()) > 200:
+            print(f"[INFO] [extractor] Utilizzato fallback BeautifulSoup per {url}")
+            return fallback_text.strip()
 
-    print(f"[ATTENZIONE] [extractor] Impossibile estrarre testo dall'articolo {url}")
+    # Livello intermedio: Jina AI Reader (se il download diretto è fallito 403 o ha prodotto testo troppo corto)
+    print(f"[INFO] [extractor] Download diretto fallito o testo insufficiente per {url}. Tentativo via Jina AI Reader...")
+    jina_text = fetch_via_jina_reader(url)
+    if jina_text:
+        return jina_text
+
+    print(f"[ATTENZIONE] [extractor] Impossibile estrarre testo dall'articolo (diretto e Jina falliti) per {url}")
     return None
