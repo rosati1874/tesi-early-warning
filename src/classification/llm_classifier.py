@@ -65,7 +65,8 @@ def get_ranked_gemini_models() -> list[str]:
             return [m_name]
 
     try:
-        models = list(genai.list_models())
+        # Passa request_options con timeout ed esclude i retry automatici per evitare blocchi trasparenti
+        models = list(genai.list_models(request_options={"timeout": 15, "retry": None}))
         supported = [
             m for m in models
             if "generateContent" in getattr(m, "supported_generation_methods", [])
@@ -86,7 +87,7 @@ def get_ranked_gemini_models() -> list[str]:
 
 
 def _is_unavailability_error(exc: Exception) -> bool:
-    """Verifica se l'eccezione indica che il modello è stato dismesso, ritirato o non è disponibile (HTTP 404)."""
+    """Verifica se l'eccezione indica che il modello è dismesso/non disponibile (404) o ha la quota esaurita (429/resource exhausted)."""
     msg = str(exc).lower()
     phrases = [
         "no longer available",
@@ -95,13 +96,18 @@ def _is_unavailability_error(exc: Exception) -> bool:
         "not_found",
         "is not supported",
         "not found",
+        "429",
+        "resource_exhausted",
+        "resource has been exhausted",
+        "quota",
+        "rate limit",
     ]
     return any(p in msg for p in phrases)
 
 
 def classify(title: str, text: str) -> dict:
     """Restituisce un dict con is_epidemic_signal, confidence, disease,
-    location, justification. In caso di modello non disponibile o dismesso (404 / no longer available),
+    location, justification. In caso di modello non disponibile o quota esaurita (404 / 429),
     inserisce il modello in blacklist e ritenta immediatamente con il successivo modello candidato.
     """
     _ensure_configured()
@@ -123,7 +129,10 @@ def classify(title: str, text: str) -> dict:
     for model_name in list(candidates):
         try:
             model = genai.GenerativeModel(model_name)
-            response = model.generate_content(prompt)
+            # Passa request_options per disabilitare i retry automatici del client SDK di Google
+            # in caso di errore 429/quota, permettendo al nostro meccanismo di blacklist e fallback di intervenire subito
+            request_options = {"timeout": 15, "retry": None}
+            response = model.generate_content(prompt, request_options=request_options)
             raw = response.text.strip()
             raw = raw.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
             parsed = json.loads(raw)
@@ -140,7 +149,7 @@ def classify(title: str, text: str) -> dict:
 
         except Exception as exc:  # noqa: BLE001
             if _is_unavailability_error(exc):
-                print(f"[ATTENZIONE] [llm_classifier] Il modello '{model_name}' non è disponibile ({exc}). Aggiunto alla blacklist, proviamo il successivo candidato...")
+                print(f"[ATTENZIONE] [llm_classifier] Il modello '{model_name}' non è disponibile o quota esaurita ({exc}). Aggiunto alla blacklist, proviamo il successivo candidato...")
                 _blacklisted_models.add(model_name)
                 continue
             else:

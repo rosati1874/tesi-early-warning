@@ -22,4 +22,5 @@ jobs:
       - name: Esegui pipeline di monitoraggio
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: python -m src.pipeline.run_monitoring
+          PYTHONUNBUFFERED: "1"
+        run: python -u -m src.pipeline.run_monitoring

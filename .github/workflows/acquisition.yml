@@ -24,4 +24,5 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           ENABLE_LLM_CLASSIFICATION: ${{ vars.ENABLE_LLM_CLASSIFICATION }}
-        run: python -m src.pipeline.run_acquisition
+          PYTHONUNBUFFERED: "1"
+        run: python -u -m src.pipeline.run_acquisition
