@@ -106,7 +106,7 @@ def fetch_targeted_articles() -> list[dict]:
                 "title": entry.get("title"),
                 "published_at": published_at,
                 "acquisition_mode": "mirato",
-                "rss_summary": clean_rss_summary(entry.get("summary")),
+                "rss_summary": clean_rss_summary(entry.get("summary"), entry.get("title")),
             })
 
     if not articles:

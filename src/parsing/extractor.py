@@ -15,8 +15,11 @@ from bs4 import BeautifulSoup
 from src.config import HTTP_USER_AGENT, REQUEST_TIMEOUT_SECONDS
 
 
-def clean_rss_summary(raw_html: str | None) -> str | None:
-    """Rimuove tag HTML e firme automatiche di WordPress da un riassunto RSS."""
+def clean_rss_summary(raw_html: str | None, title: str | None = None) -> str | None:
+    """Rimuove tag HTML e firme automatiche di WordPress da un riassunto RSS.
+
+    Se il riassunto pulito è solo una ripetizione del titolo (comune in Google News RSS), restituisce None.
+    """
     if not raw_html or not raw_html.strip():
         return None
 
@@ -29,6 +32,63 @@ def clean_rss_summary(raw_html: str | None) -> str | None:
 
     # Normalizza gli spazi intermedi
     text = re.sub(r"\s+", " ", text).strip()
+
+    if not text:
+        return None
+
+    if title and not is_meaningful_rss_summary(text, title):
+        return None
+
+    return text
+
+
+def is_meaningful_rss_summary(summary: str | None, title: str | None) -> bool:
+    """Verifica se il riassunto RSS contiene un testo informativo effettivo oltre al titolo ed al nome della fonte.
+
+    Scarta i riassunti dei feed che contengono solo la rietichettatura/ripetizione del titolo (es. Google News RSS).
+    """
+    if not summary or not summary.strip():
+        return False
+
+    summary_clean = summary.strip().lower()
+    title_clean = (title or "").strip().lower()
+
+    summary_words = set(re.findall(r"\w+", summary_clean))
+    title_words = set(re.findall(r"\w+", title_clean))
+
+    if not title_words:
+        return True
+
+    # Calcola le parole presenti nel summary che NON fanno parte del titolo
+    extra_words = [w for w in summary_words - title_words if len(w) > 2]
+
+    # Se le parole del summary che non figurano nel titolo sono meno di 4,
+    # il summary è solo una ripetizione del titolo + nome fonte (es. Il Giorno, Repubblica)
+    if len(extra_words) < 4:
+        return False
+
+    return True
+
+
+def clean_jina_output(raw_text: str | None) -> str | None:
+    """Pulisce l'output di Jina AI Reader rimuovendo l'header dei metadati e le immagini markdown."""
+    if not raw_text or not raw_text.strip():
+        return None
+
+    text = raw_text.strip()
+
+    # 1. Rimuove l'intestazione dei metadati Jina fino a "Markdown Content:"
+    pattern_header = r"^Title:.*?\bMarkdown Content:\s*"
+    text = re.sub(pattern_header, "", text, flags=re.DOTALL | re.IGNORECASE).strip()
+
+    # 2. Rimuove immagini markdown nidificate con link: [![alt](img_url)](link_url)
+    text = re.sub(r"\[!\[.*?\]\(.*?\)]\(.*?\)", "", text)
+
+    # 3. Rimuove immagini markdown semplici: ![alt](img_url)
+    text = re.sub(r"!\[.*?\]\(.*?\)", "", text)
+
+    # 4. Normalizza righe vuote multiple
+    text = re.sub(r"\n{3,}", "\n\n", text).strip()
 
     return text if text else None
 
@@ -66,9 +126,13 @@ def fetch_via_jina_reader(url: str) -> str | None:
             jina_url,
             timeout=20,
         )
-        if resp.status_code == 200 and resp.text and len(resp.text.strip()) > 200:
-            print(f"[INFO] [extractor] Contenuto recuperato con successo tramite Jina AI Reader per {url} ({len(resp.text)} caratteri)")
-            return resp.text.strip()
+        if resp.status_code == 200 and resp.text:
+            cleaned = clean_jina_output(resp.text)
+            if cleaned and len(cleaned) > 200:
+                print(f"[INFO] [extractor] Contenuto recuperato e pulito con successo tramite Jina AI Reader per {url} ({len(cleaned)} caratteri)")
+                return cleaned
+            else:
+                print(f"[ATTENZIONE] [extractor] Testo pulito da Jina AI Reader insufficiente o vuoto per {url}")
         else:
             print(f"[ATTENZIONE] [extractor] Jina AI Reader ha risposto con status {resp.status_code} per {url}")
     except requests.RequestException as exc:

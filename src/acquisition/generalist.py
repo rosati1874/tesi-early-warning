@@ -67,7 +67,7 @@ def fetch_generalist_articles(queries: list[str] | None = None) -> list[dict]:
                 "title": entry.get("title"),
                 "published_at": published_at,
                 "acquisition_mode": "generalista",
-                "rss_summary": clean_rss_summary(entry.get("summary")),
+                "rss_summary": clean_rss_summary(entry.get("summary"), entry.get("title")),
             })
 
     if not articles:
