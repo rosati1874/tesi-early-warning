@@ -6,6 +6,7 @@ classificazione LLM -> storage.
 Richiamato dal workflow .github/workflows/acquisition.yml.
 """
 from datetime import datetime, timezone
+from sqlalchemy import func
 
 from src.db.connection import get_session
 from src.db.models import Article
