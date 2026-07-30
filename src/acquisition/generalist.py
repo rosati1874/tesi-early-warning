@@ -8,7 +8,7 @@ testuali e filtrabile per lingua/regione, ed è quindi la scelta principale
 per l'acquisizione generalista in questo scaffold.
 """
 from datetime import datetime, timezone
-from urllib.parse import quote_plus
+from urllib.parse import quote_plus, urlparse
 import feedparser
 from googlenewsdecoder import new_decoderv1
 
@@ -40,6 +40,35 @@ def _resolve_article_url(raw_url: str | None) -> str | None:
     return raw_url
 
 
+def _extract_source_name(entry: dict, resolved_url: str | None = None) -> str:
+    """Estrae il nome reale della testata dall'elemento RSS di Google News o dall'URL decodificato.
+
+    1. Tenta il tag dedicato <source> di Google News (feedparser lo decodifica in entry.source).
+    2. Come riserva, estrae il dominio dall'URL reale decodificato (es. "repubblica.it", "linkiesta.it").
+    3. Se entrambi falliscono, restituisce "google_news".
+    """
+    # 1. Tentativo da tag <source> di Google News RSS
+    source_obj = entry.get("source")
+    if isinstance(source_obj, dict) and source_obj.get("title"):
+        return source_obj["title"].strip()
+    elif hasattr(source_obj, "title") and getattr(source_obj, "title"):
+        return getattr(source_obj, "title").strip()
+
+    # 2. Riserva da dominio dell'URL decodificato
+    if resolved_url:
+        try:
+            domain = urlparse(resolved_url).netloc.lower()
+            if domain:
+                domain = domain.removeprefix("www.").strip()
+                if domain and domain != "news.google.com":
+                    return domain
+        except Exception:
+            pass
+
+    # 3. Riserva generica
+    return "google_news"
+
+
 def fetch_generalist_articles(queries: list[str] | None = None) -> list[dict]:
     """Interroga Google News RSS per ciascuna query e restituisce articoli grezzi con URL decodificati."""
     queries = queries or GENERALIST_QUERIES
@@ -60,13 +89,14 @@ def fetch_generalist_articles(queries: list[str] | None = None) -> list[dict]:
 
             raw_link = entry.get("link")
             resolved_url = _resolve_article_url(raw_link)
+            source_name = _extract_source_name(entry, resolved_url)
 
             articles.append({
                 "url": resolved_url,
-                "source": "google_news",
+                "source": source_name,  # Nome reale della testata (es. "FNOMCeO", "La Repubblica", "linkiesta.it")
                 "title": entry.get("title"),
                 "published_at": published_at,
-                "acquisition_mode": "generalista",
+                "acquisition_mode": "generalista",  # Mantiene l'informazione del canale Google News
                 "rss_summary": clean_rss_summary(entry.get("summary"), entry.get("title")),
             })
 
