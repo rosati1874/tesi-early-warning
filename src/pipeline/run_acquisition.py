@@ -50,22 +50,19 @@ def run() -> None:
             text = extract_article_text(raw["url"])
             if not text:
                 # riserva: usa il riassunto già incluso nel feed RSS, quando
-                # la pagina completa non è raggiungibile (es. blocco anti-bot,
-                # osservato con Linkiesta). Meno ricco del testo completo, ma
-                # evita di perdere del tutto l'articolo.
+                # la pagina completa non è raggiungibile.
                 text = raw.get("rss_summary")
                 if text:
                     print(f"[INFO] [pipeline] Utilizzato rss_summary per l'articolo: {raw['url']}")
 
             if not text:
-                print(f"[ATTENZIONE] [pipeline] Impossibile recuperare sia il testo che l'rss_summary per: {raw['url']}")
-                continue
+                print(f"[INFO] [pipeline] Salvataggio articolo senza corpo/solo metadati: '{raw.get('title')}'")
 
-            passed_filter = passes_keyword_filter(text, raw.get("title", ""))
+            passed_filter = passes_keyword_filter(text or "", raw.get("title", ""))
             if not passed_filter:
                 print(f"[INFO] [pipeline] Articolo scartato dal filtro keyword: '{raw.get('title')}'")
 
-            # Salva l'articolo nel database con is_epidemic_signal=None (in attesa di classificazione)
+            # Salva l'articolo nel database con la traccia minima (titolo, fonte, data, URL)
             article = Article(
                 url=raw["url"],
                 source=raw["source"],
@@ -73,7 +70,7 @@ def run() -> None:
                 title=raw.get("title"),
                 published_at=raw.get("published_at"),
                 first_seen_at=datetime.now(timezone.utc),
-                raw_text=text,
+                raw_text=text,  # Può essere None se privo di corpo/riassunto significativo
                 passed_keyword_filter=passed_filter,
                 is_epidemic_signal=None,
                 llm_confidence=None,
@@ -94,7 +91,7 @@ def run() -> None:
 
     print(f"[INFO] [pipeline] {new_count} nuovi articoli salvati nel database")
 
-    # Fase di classificazione LLM (priorità agli articoli in arretrato con meno tentativi falliti)
+    # Fase di classificazione LLM (priorità agli articoli in arretrato con testo effettivo)
     if not ENABLE_LLM_CLASSIFICATION:
         print("[INFO] [pipeline] Classificazione LLM disattivata (ENABLE_LLM_CLASSIFICATION=false)")
     elif MAX_LLM_CLASSIFICATIONS_PER_RUN <= 0:
@@ -105,7 +102,9 @@ def run() -> None:
             .filter(
                 Article.passed_keyword_filter.is_(True),
                 Article.is_epidemic_signal.is_(None),
-                Article.classification_attempts < 3,  # Esclude articoli con 3 o più tentativi falliti
+                Article.raw_text.isnot(None),  # Classifica solo articoli con corpo/testo effettivo
+                func.length(Article.raw_text) > 100,
+                Article.classification_attempts < 3,
             )
             .order_by(Article.classification_attempts.asc(), Article.first_seen_at.asc())
             .limit(MAX_LLM_CLASSIFICATIONS_PER_RUN)
