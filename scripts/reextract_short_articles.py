@@ -1,5 +1,8 @@
-"""Script per ri-estrarre il testo completo tramite Jina AI Reader per gli articoli storici brevi (es. Linkiesta)."""
+"""[DEPRECATO - NON UTILIZZARE] Script temporaneo disattivato."""
 import sys
+print("[INFO] Script deprecato. Non in uso.")
+sys.exit(0)
+
 from sqlalchemy import func
 
 sys.path.append('.')

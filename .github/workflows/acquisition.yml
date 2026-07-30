@@ -27,12 +27,6 @@ jobs:
           PYTHONUNBUFFERED: "1"
         run: python -u -m src.pipeline.run_acquisition
 
-      - name: Ri-estrai testo completo per articoli storici corti
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          PYTHONUNBUFFERED: "1"
-        run: python -u scripts/reextract_short_articles.py
-
       - name: Esegui diagnostica conteggi DB Supabase
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
