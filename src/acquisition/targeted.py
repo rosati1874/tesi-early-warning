@@ -17,7 +17,6 @@ TARGETED_FEEDS = [
     {"source": "ilpost", "url": "https://www.ilpost.it/feed"},
     {"source": "linkiesta", "url": "https://www.linkiesta.it/feed/"},
     {"source": "ansa_salute", "url": "https://www.ansa.it/canale_saluteebenessere/notizie/saluteebenessere_rss.xml"},
-    {"source": "repubblica", "url": "https://www.repubblica.it/rss/homepage/rss2.0.xml"},
     # Feed verificato e perfettamente funzionante.
     {"source": "adnkronos_salute", "url": "https://www.adnkronos.com/RSS_Salute.xml"},
 ]
