@@ -58,17 +58,19 @@ def fetch_via_jina_reader(url: str) -> str | None:
     """Tenta il recupero del contenuto dell'articolo tramite il servizio gratuito Jina AI Reader (https://r.jina.ai/).
 
     Supera blocchi 403 Forbidden ed anti-bot su testate come Linkiesta e Repubblica senza richiedere chiave API.
+    Nota: non passare headers HTTP personalizzati a Jina per non interferire con il suo gateway di estrazione.
     """
     jina_url = f"https://r.jina.ai/{url}"
     try:
         resp = requests.get(
             jina_url,
-            headers=DEFAULT_HEADERS,
-            timeout=REQUEST_TIMEOUT_SECONDS,
+            timeout=20,
         )
         if resp.status_code == 200 and resp.text and len(resp.text.strip()) > 200:
             print(f"[INFO] [extractor] Contenuto recuperato con successo tramite Jina AI Reader per {url} ({len(resp.text)} caratteri)")
             return resp.text.strip()
+        else:
+            print(f"[ATTENZIONE] [extractor] Jina AI Reader ha risposto con status {resp.status_code} per {url}")
     except requests.RequestException as exc:
         print(f"[ATTENZIONE] [extractor] Errore durante il recupero via Jina AI Reader per {url}: {exc}")
 
