@@ -12,13 +12,18 @@ un'epidemia, un caso di malattia infettiva rilevante), oppure se si tratta
 di un contenuto non pertinente (cronaca generica, uso figurato di termini
 come "focolaio" o "epidemia", argomento non sanitario, ecc.).
 
+REGOLE PER IL CAMPO "disease":
+- Deve essere in un formato standardizzato con prima lettera maiuscola ed il nome comune della malattia in italiano (es. "Covid-19", "Ebola", "Peste suina africana", "Hantavirus", "Influenza aviaria", "Febbre Dengue").
+- Evita varianti in tutto maiuscolo (es. NON "COVID19", NON "EBOLA") o tutto minuscolo (es. NON "peste suina").
+- Se la malattia non è identificabile con certezza, imposta il valore a null.
+
 Rispondi ESCLUSIVAMENTE con un oggetto JSON valido, senza testo aggiuntivo,
 con questa struttura esatta:
 
 {{
   "is_epidemic_signal": true/false,
   "confidence": <numero tra 0 e 1>,
-  "disease": "<nome della malattia/patogeno se identificabile, altrimenti null>",
+  "disease": "<nome della malattia/patogeno in formato standardizzato es. 'Covid-19', 'Peste suina africana', 'Ebola', altrimenti null>",
   "location": "<luogo geografico coinvolto se identificabile, altrimenti null>",
   "justification": "<breve motivazione in una frase>"
 }}
