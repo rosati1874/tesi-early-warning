@@ -75,7 +75,7 @@ def _is_per_minute_quota_error(reason: Exception | str) -> bool:
 
 
 def _load_blacklisted_models_from_db() -> set[str]:
-    """Carica dal DB solo i modelli la cui blacklist non è ancora scaduta (expires_at > now)."""
+    """Carica dal DB solo i modelli la cui blacklist non è ancora scaduta (expires_at > now), pulendo quelle vecchie."""
     try:
         from datetime import datetime, timezone
         from src.db.connection import get_session
@@ -83,6 +83,11 @@ def _load_blacklisted_models_from_db() -> set[str]:
 
         session = get_session()
         now = datetime.now(timezone.utc)
+
+        # Pulizia automatica delle righe di blacklist già scadute nel DB
+        session.query(BlacklistedModel).filter(BlacklistedModel.expires_at <= now).delete(synchronize_session=False)
+        session.commit()
+
         rows = (
             session.query(BlacklistedModel)
             .filter(BlacklistedModel.expires_at > now)
