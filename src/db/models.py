@@ -1,7 +1,7 @@
 """Modelli SQLAlchemy, allineati a sql/schema.sql."""
 from datetime import datetime
 from sqlalchemy import (
-    Column, Integer, String, Text, Boolean, Float, TIMESTAMP, ForeignKey
+    Column, Integer, String, Text, Boolean, Float, TIMESTAMP, ForeignKey, Index
 )
 from sqlalchemy.orm import declarative_base, relationship
 
@@ -10,6 +10,10 @@ Base = declarative_base()
 
 class Article(Base):
     __tablename__ = "articles"
+    __table_args__ = (
+        Index("idx_articles_pending_classification", "passed_keyword_filter", "is_epidemic_signal", "first_seen_at"),
+        Index("idx_articles_first_seen", "first_seen_at"),
+    )
 
     id = Column(Integer, primary_key=True)
     url = Column(Text, unique=True, nullable=False)

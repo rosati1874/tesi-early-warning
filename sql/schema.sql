@@ -50,6 +50,8 @@ CREATE TABLE IF NOT EXISTS blacklisted_models (
 );
 
 CREATE INDEX IF NOT EXISTS idx_articles_signal ON articles (is_epidemic_signal);
+CREATE INDEX IF NOT EXISTS idx_articles_pending_classification ON articles (passed_keyword_filter, is_epidemic_signal, first_seen_at);
+CREATE INDEX IF NOT EXISTS idx_articles_first_seen ON articles (first_seen_at);
 CREATE INDEX IF NOT EXISTS idx_article_versions_article_id ON article_versions (article_id);
 CREATE INDEX IF NOT EXISTS idx_availability_checks_article_id ON availability_checks (article_id);
 CREATE INDEX IF NOT EXISTS idx_blacklisted_models_expires ON blacklisted_models (expires_at);
