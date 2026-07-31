@@ -202,19 +202,6 @@ def get_ranked_gemini_models() -> list[str]:
     return []
 
 
-def _is_timeout_504_error(exc: Exception) -> bool:
-    """Verifica se l'eccezione indica un errore di timeout temporaneo (504 / Deadline Exceeded)."""
-    msg = str(exc).lower()
-    timeout_phrases = [
-        "504",
-        "deadline exceeded",
-        "deadline_exceeded",
-        "timed out",
-        "timeout",
-    ]
-    return any(p in msg for p in timeout_phrases)
-
-
 def _is_unavailability_error(exc: Exception) -> bool:
     """Verifica se l'eccezione indica che il modello è dismesso/non disponibile (404) o ha la quota esaurita (429/resource exhausted)."""
     msg = str(exc).lower()
@@ -236,9 +223,8 @@ def _is_unavailability_error(exc: Exception) -> bool:
 
 def classify(title: str, text: str) -> dict:
     """Restituisce un dict con is_epidemic_signal, confidence, disease,
-    location, justification. In caso di errore 504 (timeout), effettua un retry
-    immediato di 1 tentativo dopo 2s senza blacklistare il modello.
-    In caso di 404 / 429 (quota esaurita), inserisce il modello in blacklist e passa al successivo.
+    location, justification. In caso di modello non disponibile o quota esaurita (404 / 429),
+    inserisce il modello in blacklist (in memoria e DB) e ritenta immediatamente con il successivo candidato.
     """
     _ensure_configured()
     candidates = get_ranked_gemini_models()
@@ -257,46 +243,39 @@ def classify(title: str, text: str) -> dict:
     prompt = build_classification_prompt(title, text)
 
     for model_name in list(candidates):
-        model = genai.GenerativeModel(model_name)
-        request_options = {"timeout": 15, "retry": None}
+        try:
+            model = genai.GenerativeModel(model_name)
+            request_options = {"timeout": 15, "retry": None}
+            response = model.generate_content(prompt, request_options=request_options)
+            raw = response.text.strip()
+            raw = raw.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+            parsed = json.loads(raw)
+            res = {
+                "is_epidemic_signal": parsed.get("is_epidemic_signal"),
+                "confidence": parsed.get("confidence"),
+                "disease": parsed.get("disease"),
+                "location": parsed.get("location"),
+                "justification": parsed.get("justification"),
+                "llm_model": model_name,
+            }
+            print(f"[INFO] [llm_classifier] Articolo '{title}' classificato con {model_name} (segnale epidemico: {res['is_epidemic_signal']}, confidenza: {res['confidence']})")
+            return res
 
-        for attempt in range(1, 3):
-            try:
-                response = model.generate_content(prompt, request_options=request_options)
-                raw = response.text.strip()
-                raw = raw.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-                parsed = json.loads(raw)
-                res = {
-                    "is_epidemic_signal": parsed.get("is_epidemic_signal"),
-                    "confidence": parsed.get("confidence"),
-                    "disease": parsed.get("disease"),
-                    "location": parsed.get("location"),
-                    "justification": parsed.get("justification"),
+        except Exception as exc:  # noqa: BLE001
+            if _is_unavailability_error(exc):
+                print(f"[ATTENZIONE] [llm_classifier] Il modello '{model_name}' non è disponibile o quota esaurita ({exc}). Aggiunto alla blacklist, proviamo il successivo candidato...")
+                _blacklist_model(model_name, str(exc))
+                continue
+            else:
+                print(f"[ATTENZIONE] [llm_classifier] Errore di classificazione con {model_name} per '{title}': {exc}")
+                return {
+                    "is_epidemic_signal": None,
+                    "confidence": None,
+                    "disease": None,
+                    "location": None,
+                    "justification": f"errore di classificazione con {model_name}: {exc}",
                     "llm_model": model_name,
                 }
-                print(f"[INFO] [llm_classifier] Articolo '{title}' classificato con {model_name} (segnale epidemico: {res['is_epidemic_signal']}, confidenza: {res['confidence']})")
-                return res
-
-            except Exception as exc:  # noqa: BLE001
-                if _is_timeout_504_error(exc) and attempt == 1:
-                    import time
-                    print(f"[INFO] [llm_classifier] Timeout 504 su '{model_name}' (tentativo 1/2). Pausa di 2s e secondo tentativo in corso...")
-                    time.sleep(2)
-                    continue
-                elif _is_unavailability_error(exc):
-                    print(f"[ATTENZIONE] [llm_classifier] Il modello '{model_name}' non è disponibile o quota esaurita ({exc}). Aggiunto alla blacklist, proviamo il successivo candidato...")
-                    _blacklist_model(model_name, str(exc))
-                    break
-                else:
-                    print(f"[ATTENZIONE] [llm_classifier] Errore di classificazione con {model_name} per '{title}': {exc}")
-                    return {
-                        "is_epidemic_signal": None,
-                        "confidence": None,
-                        "disease": None,
-                        "location": None,
-                        "justification": f"errore di classificazione con {model_name}: {exc}",
-                        "llm_model": model_name,
-                    }
 
     msg = f"tutti i modelli candidati ({candidates}) sono risultati non disponibili o in errore"
     print(f"[ATTENZIONE] [llm_classifier] {msg} per '{title}'")
