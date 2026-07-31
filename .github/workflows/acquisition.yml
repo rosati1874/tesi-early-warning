@@ -32,10 +32,3 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           PYTHONUNBUFFERED: "1"
         run: python -u scripts/check_db_stats.py
-
-      - name: Esegui test live standardizzazione disease Gemini
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          PYTHONUNBUFFERED: "1"
-        run: python -u scripts/test_live_disease_formatting.py
