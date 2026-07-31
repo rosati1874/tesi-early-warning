@@ -20,7 +20,7 @@ ENABLE_LLM_CLASSIFICATION = os.environ.get(
 ).lower() == "true"
 
 MAX_LLM_CLASSIFICATIONS_PER_RUN = int(
-    os.environ.get("MAX_LLM_CLASSIFICATIONS_PER_RUN", "30")
+    os.environ.get("MAX_LLM_CLASSIFICATIONS_PER_RUN", "60")
 )
 
 BASE_DIR = Path(__file__).resolve().parent
