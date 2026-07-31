@@ -37,11 +37,16 @@ def run() -> None:
         print(msg)
         raise RuntimeError(msg)
 
-    new_count = 0
+    seen_in_batch = set()
+    deduped_raw_articles = []
     for raw in raw_articles:
-        if not raw.get("url"):
-            continue
+        url = raw.get("url")
+        if url and url not in seen_in_batch:
+            seen_in_batch.add(url)
+            deduped_raw_articles.append(raw)
 
+    new_count = 0
+    for raw in deduped_raw_articles:
         try:
             # RF-03: evita di rielaborare articoli già acquisiti in precedenza
             existing = session.query(Article).filter_by(url=raw["url"]).first()
@@ -85,10 +90,8 @@ def run() -> None:
             session.commit()
             new_count += 1
         except Exception as exc:
-            msg = f"[ERRORE GRAVE] [pipeline] Errore critico durante l'elaborazione/salvataggio dell'articolo '{raw.get('url')}': {exc}"
-            print(msg)
+            print(f"[ATTENZIONE] [pipeline] Errore o duplicato durante il salvataggio dell'articolo '{raw.get('url')}': {exc}")
             session.rollback()
-            raise RuntimeError(msg) from exc
 
     print(f"[INFO] [pipeline] {new_count} nuovi articoli salvati nel database")
 

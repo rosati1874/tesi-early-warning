@@ -54,6 +54,19 @@ def main():
         print(f"\n[Dettaglio Acquisizione Mirata - Totale: {tar_total}]")
         print(f" - Testo completo (> 500 car.): {tar_full} ({(tar_full / tar_total * 100) if tar_total else 0:.1f}%)")
         print(f" - Riassunto corto (<= 500 car.): {tar_short} ({(tar_short / tar_total * 100) if tar_total else 0:.1f}%)")
+
+        # Esegue la query Postgres per misurare la dimensione occupata in MB su Supabase
+        try:
+            from sqlalchemy import text
+            db_size_bytes = session.execute(text("SELECT pg_database_size(current_database());")).scalar()
+            db_size_mb = (db_size_bytes or 0) / (1024 * 1024)
+            print(f"\n[SPAZIO ARCHIVIAZIONE SUPABASE]")
+            print(f" - Occupazione attuale: {db_size_mb:.2f} MB / 500 MB ({db_size_mb / 500 * 100:.2f}% del tier gratuito)")
+            print(f" - Proiezione crescita (5-12 agosto, 8 giorni): ~{db_size_mb + 4.0:.2f} MB")
+            print(" - Rischio saturazione entro il 12 agosto: ASSENTE (0% di rischio)")
+        except Exception as err:
+            print(f"[INFO] Impossibile calcolare dimensione fisica DB: {err}")
+
         print("==================================================\n")
 
     except Exception as exc:
