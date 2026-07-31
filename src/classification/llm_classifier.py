@@ -10,7 +10,7 @@ import re
 import json
 import google.generativeai as genai
 
-from src.config import GEMINI_API_KEY, GEMINI_MODEL
+from src.config import DATABASE_URL, GEMINI_API_KEY, GEMINI_MODEL
 from src.classification.prompts import build_classification_prompt
 
 _configured = False
