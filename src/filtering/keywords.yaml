@@ -1,5 +1,5 @@
-# Keyword di dominio epidemiologico (RF-04)
-# Modificabile senza toccare il codice.
+# Keyword di dominio epidemiologico generico (RF-04)
+# Sistema di early warning generico, indipendente da specifici patogeni.
 keywords:
   - epidemia
   - pandemia
@@ -8,22 +8,17 @@ keywords:
   - contagio
   - contagi
   - infezione
-  - sintomi
   - focolaio
   - focolai
   - nuovi casi
-  - hantavirus
+  - casi sospetti
   - allerta sanitaria
   - quarantena
+  - PHEIC
+  - emergenza sanitaria internazionale
   - OMS
   - ECDC
-  - ministero della salute
-  - ricoverato
-  - ricoverati
-  - decessi
-  - casi sospetti
   - ISS
-  # Indicatori proxy per epidemie veterinarie (peste suina, aviaria)
   - abbattimento
   - capi abbattuti
   - abbattuti
