@@ -71,7 +71,9 @@ def is_meaningful_rss_summary(summary: str | None, title: str | None) -> bool:
 
 
 def clean_jina_output(raw_text: str | None) -> str | None:
-    """Pulisce l'output di Jina AI Reader rimuovendo l'header dei metadati e le immagini markdown."""
+    """Pulisce l'output di Jina AI Reader rimuovendo l'header dei metadati, le immagini markdown
+    ed applicando un'euristica sui confini dell'articolo (dal primo '# Titolo' fino a 'Condividi:').
+    """
     if not raw_text or not raw_text.strip():
         return None
 
@@ -81,13 +83,32 @@ def clean_jina_output(raw_text: str | None) -> str | None:
     pattern_header = r"^Title:.*?\bMarkdown Content:\s*"
     text = re.sub(pattern_header, "", text, flags=re.DOTALL | re.IGNORECASE).strip()
 
-    # 2. Rimuove immagini markdown nidificate con link: [![alt](img_url)](link_url)
+    # 2. Euristica Inizio: individua il primo titolo principale Markdown (# Titolo)
+    # e scarta tutto il menu di navigazione o il chrome antecedente.
+    match_title = re.search(r"(?m)^#\s+.*$", text)
+    if match_title:
+        text = text[match_title.start():]
+
+    # 3. Euristica Fine: individua la prima occorrenza di "Condividi:" / "Share:" / "Fai clic per condividere"
+    # dopo il titolo e scarta tutto ciò che segue (articoli correlati, più letti, footer, banner cookie).
+    match_share = re.search(
+        r"(?i)(?:^#{1,6}\s*Condividi\b|\bCondividi\s*:|\bShare\s*:|\bFai clic per condividere\b|\bCondividi questo articolo\b)",
+        text,
+    )
+    if match_share:
+        text = text[:match_share.start()].rstrip()
+        # Rimuove eventuali cancelletti di intestazione rimasti sospesi in fondo prima di "Condividi"
+        text = re.sub(r"\n+#{1,6}\s*$", "", text).strip()
+
+    # 4. Rimuove immagini markdown nidificate con link: [![alt](img_url)](link_url)
     text = re.sub(r"\[!\[.*?\]\(.*?\)]\(.*?\)", "", text)
 
-    # 3. Rimuove immagini markdown semplici: ![alt](img_url)
+    # 5. Rimuove immagini markdown semplici: ![alt](img_url)
     text = re.sub(r"!\[.*?\]\(.*?\)", "", text)
 
-    # 4. Normalizza righe vuote multiple
+    # 6. Normalizza righe vuote multiple
+    lines = [line.strip() for line in text.splitlines()]
+    text = "\n".join(lines)
     text = re.sub(r"\n{3,}", "\n\n", text).strip()
 
     return text if text else None
