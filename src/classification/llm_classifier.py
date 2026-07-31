@@ -76,6 +76,8 @@ def _is_per_minute_quota_error(reason: Exception | str) -> bool:
 
 def _load_blacklisted_models_from_db() -> set[str]:
     """Carica dal DB solo i modelli la cui blacklist non è ancora scaduta (expires_at > now), pulendo quelle vecchie."""
+    if not DATABASE_URL:
+        return set()
     try:
         from datetime import datetime, timezone
         from src.db.connection import get_session
@@ -112,6 +114,9 @@ def _blacklist_model(model_name: str, reason: str = ""):
     ttl_desc = "2 minuti (limite RPM al minuto)" if is_rpm else "12 ore (limite RPD giornaliero o 404)"
 
     print(f"[INFO] [llm_classifier] Modello '{model_name}' inserito in blacklist per {ttl_desc}")
+
+    if not DATABASE_URL:
+        return
 
     try:
         from datetime import datetime, timedelta, timezone
