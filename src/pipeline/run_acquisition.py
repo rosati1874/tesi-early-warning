@@ -5,7 +5,7 @@ classificazione LLM -> storage.
 
 Richiamato dal workflow .github/workflows/acquisition.yml.
 """
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from sqlalchemy import func
 
 from src.db.connection import get_session
@@ -48,10 +48,29 @@ def run() -> None:
     new_count = 0
     for raw in deduped_raw_articles:
         try:
-            # RF-03: evita di rielaborare articoli già acquisiti in precedenza
-            existing = session.query(Article).filter_by(url=raw["url"]).first()
-            if existing:
+            # RF-03: evita di rielaborare articoli già acquisiti in precedenza per URL esatto
+            existing_url = session.query(Article).filter_by(url=raw["url"]).first()
+            if existing_url:
                 continue
+
+            # Deduplicazione conservativa per titolo esatto normalizzato + fonte + finestra di 48 ore
+            raw_title = raw.get("title")
+            raw_source = raw.get("source")
+            if raw_title and raw_source:
+                normalized_title = raw_title.strip().lower()
+                cutoff_time = datetime.now(timezone.utc) - timedelta(hours=48)
+                existing_title_dup = (
+                    session.query(Article)
+                    .filter(
+                        Article.source == raw_source,
+                        func.lower(func.trim(Article.title)) == normalized_title,
+                        Article.first_seen_at >= cutoff_time,
+                    )
+                    .first()
+                )
+                if existing_title_dup:
+                    print(f"[INFO] [pipeline] Articolo duplicato (stesso titolo/fonte) scartato: {raw['url']}")
+                    continue
 
             text = extract_article_text(raw["url"])
             if not text:
