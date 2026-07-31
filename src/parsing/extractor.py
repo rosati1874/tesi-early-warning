@@ -100,15 +100,30 @@ def clean_jina_output(raw_text: str | None) -> str | None:
         # Rimuove eventuali cancelletti di intestazione rimasti sospesi in fondo prima di "Condividi"
         text = re.sub(r"\n+#{1,6}\s*$", "", text).strip()
 
-    # 4. Rimuove immagini markdown nidificate con link: [![alt](img_url)](link_url)
+    # 4. Rimuove link markdown senza testo visibile con parentesi quadre vuote: [](url)
+    text = re.sub(r"\[\]\(.*?\)", "", text)
+
+    # 5. Rimuove immagini markdown nidificate con link: [![alt](img_url)](link_url)
     text = re.sub(r"\[!\[.*?\]\(.*?\)]\(.*?\)", "", text)
 
-    # 5. Rimuove immagini markdown semplici: ![alt](img_url)
+    # 6. Rimuove immagini markdown semplici: ![alt](img_url)
     text = re.sub(r"!\[.*?\]\(.*?\)", "", text)
 
-    # 6. Normalizza righe vuote multiple
+    # 7. Rimuove righe di sola firma d'autore o crediti fotografici brevi prima del corpo dell'articolo
     lines = [line.strip() for line in text.splitlines()]
-    text = "\n".join(lines)
+    filtered_lines = []
+    for line in lines:
+        if not line:
+            filtered_lines.append("")
+            continue
+
+        # Rimuove link solitari ad autore tipo [Linkiesta](url) o crediti fotografici brevi tipo AP/Lapresse
+        if (re.match(r"^\[.*?\]\(.*?\)$", line) and len(line) < 60) or line in ("AP/Lapresse", "Foto AP/Lapresse", "Ansa", "Lapresse"):
+            continue
+
+        filtered_lines.append(line)
+
+    text = "\n".join(filtered_lines)
     text = re.sub(r"\n{3,}", "\n\n", text).strip()
 
     return text if text else None
