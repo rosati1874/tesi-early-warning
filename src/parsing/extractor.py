@@ -191,6 +191,13 @@ SOCIAL_PATTERNS = [
 ]
 
 
+def is_social_sharing_line(line: str) -> bool:
+    """Restituisce True solo se la riga contiene 3 o più link di condivisione social distinti."""
+    line_lower = line.lower()
+    matches = sum(1 for pattern in SOCIAL_PATTERNS if re.search(pattern, line_lower))
+    return matches >= 3
+
+
 def is_pure_ui_metadata_line(line: str) -> bool:
     """Restituisce True solo se la riga è una concatenazione isolata di badge/metadati UI
     (es. 'di Redazione Salute ai preferiti su Google 3' di lettura I punti chiave 3' di lettura')
