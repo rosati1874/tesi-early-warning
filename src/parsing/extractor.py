@@ -177,18 +177,44 @@ def fetch_via_jina_reader(url: str) -> str | None:
     return None
 
 
-def clean_extracted_text(text: str | None) -> str | None:
-    """Pulisce il testo estratto (da trafilatura o BeautifulSoup) troncatolo se è presente la dicitura '© Riproduzione riservata'.
+SOCIAL_PATTERNS = [
+    r"facebook\.com/share",
+    r"x\.com/intent",
+    r"twitter\.com/(?:intent|share)",
+    r"linkedin\.com/share",
+    r"(?:api\.)?whatsapp\.com/send",
+    r"whatsapp://send",
+    r"(?:telegram\.me|t\.me)/share",
+    r"fb-messenger://",
+    r"mailto:\?subject=",
+    r"mailto:\?body=",
+]
 
-    Se l'articolo termina con '© Riproduzione riservata' (o varianti case-insensitive), tronca tutto ciò che segue
-    per eliminare il blocco degli articoli correlati / notizie del sito.
-    Se la dicitura non è presente, il testo rimane inalterato (approccio conservativo).
+
+def is_social_sharing_line(line: str) -> bool:
+    """Restituisce True solo se la riga contiene 3 o più link di condivisione social distinti."""
+    line_lower = line.lower()
+    matches = sum(1 for pattern in SOCIAL_PATTERNS if re.search(pattern, line_lower))
+    return matches >= 3
+
+
+def clean_extracted_text(text: str | None) -> str | None:
+    """Pulisce il testo estratto (da trafilatura, BeautifulSoup o Jina AI Reader):
+    1. Rimuove righe contenenti blocchi di condivisione social (>= 3 link social sulla stessa riga).
+    2. Tronca il testo se è presente la dicitura '© Riproduzione riservata'.
     """
     if not text or not text.strip():
         return None
 
     cleaned = text.strip()
 
+    # 1. Rimuove righe di pulsanti social (>= 3 link social sulla stessa riga)
+    lines = [line.strip() for line in cleaned.splitlines()]
+    filtered_lines = [line for line in lines if not is_social_sharing_line(line)]
+    cleaned = "\n".join(filtered_lines)
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned).strip()
+
+    # 2. Tronca dopo '© Riproduzione riservata'
     pattern = r"(?i)(?:©\s*)?Riproduzione\s+riservata"
     match = re.search(pattern, cleaned)
     if match:
