@@ -191,16 +191,29 @@ SOCIAL_PATTERNS = [
 ]
 
 
-def is_social_sharing_line(line: str) -> bool:
-    """Restituisce True solo se la riga contiene 3 o più link di condivisione social distinti."""
-    line_lower = line.lower()
-    matches = sum(1 for pattern in SOCIAL_PATTERNS if re.search(pattern, line_lower))
-    return matches >= 3
+def is_pure_ui_metadata_line(line: str) -> bool:
+    """Restituisce True solo se la riga è una concatenazione isolata di badge/metadati UI
+    (es. 'di Redazione Salute ai preferiti su Google 3' di lettura I punti chiave 3' di lettura')
+    e NON una frase sintattica di testo reale.
+    """
+    l_str = line.strip()
+    if not l_str:
+        return False
+
+    has_preferiti = bool(re.search(r"(?i)\bai\s+preferiti\s+su\s+google\b", l_str))
+    has_tempo_lettura = bool(re.search(r"(?i)\b\d+['’]\s*di\s+lettura\b", l_str))
+    has_punti_chiave = bool(re.search(r"(?i)^(?:#{1,6}\s*)?I\s+punti\s+chiave$", l_str))
+
+    if has_preferiti or has_tempo_lettura or has_punti_chiave:
+        if len(l_str) < 130 and not l_str.endswith((".", "!", "?")):
+            return True
+
+    return False
 
 
 def clean_extracted_text(text: str | None) -> str | None:
     """Pulisce il testo estratto (da trafilatura, BeautifulSoup o Jina AI Reader):
-    1. Rimuove righe contenenti blocchi di condivisione social (>= 3 link social sulla stessa riga).
+    1. Rimuove righe di condivisione social (>= 3 link) e righe di metadati UI isolati (es. preferiti su Google, 3' di lettura).
     2. Tronca il testo se è presente la dicitura '© Riproduzione riservata'.
     """
     if not text or not text.strip():
@@ -208,9 +221,12 @@ def clean_extracted_text(text: str | None) -> str | None:
 
     cleaned = text.strip()
 
-    # 1. Rimuove righe di pulsanti social (>= 3 link social sulla stessa riga)
+    # 1. Rimuove righe di pulsanti social e metadati UI isolati
     lines = [line.strip() for line in cleaned.splitlines()]
-    filtered_lines = [line for line in lines if not is_social_sharing_line(line)]
+    filtered_lines = [
+        line for line in lines
+        if not is_social_sharing_line(line) and not is_pure_ui_metadata_line(line)
+    ]
     cleaned = "\n".join(filtered_lines)
     cleaned = re.sub(r"\n{3,}", "\n\n", cleaned).strip()
 
