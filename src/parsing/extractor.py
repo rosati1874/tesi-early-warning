@@ -207,7 +207,7 @@ def extract_article_text(url: str, html: str | None = None) -> str | None:
     """
     html_content = html or fetch_html(url)
     if html_content:
-        text = trafilatura.extract(html_content, favor_recall=True)
+        text = trafilatura.extract(html_content, favor_precision=True)
         if text:
             cleaned_text = clean_extracted_text(text)
             if cleaned_text and len(cleaned_text.strip()) > 200:
