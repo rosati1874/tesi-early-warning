@@ -177,6 +177,26 @@ def fetch_via_jina_reader(url: str) -> str | None:
     return None
 
 
+def clean_extracted_text(text: str | None) -> str | None:
+    """Pulisce il testo estratto (da trafilatura o BeautifulSoup) troncatolo se è presente la dicitura '© Riproduzione riservata'.
+
+    Se l'articolo termina con '© Riproduzione riservata' (o varianti case-insensitive), tronca tutto ciò che segue
+    per eliminare il blocco degli articoli correlati / notizie del sito.
+    Se la dicitura non è presente, il testo rimane inalterato (approccio conservativo).
+    """
+    if not text or not text.strip():
+        return None
+
+    cleaned = text.strip()
+
+    pattern = r"(?i)(?:©\s*)?Riproduzione\s+riservata"
+    match = re.search(pattern, cleaned)
+    if match:
+        cleaned = cleaned[:match.start()].strip()
+
+    return cleaned if cleaned else None
+
+
 def extract_article_text(url: str, html: str | None = None) -> str | None:
     """Restituisce il testo principale dell'articolo.
 
@@ -188,22 +208,26 @@ def extract_article_text(url: str, html: str | None = None) -> str | None:
     html_content = html or fetch_html(url)
     if html_content:
         text = trafilatura.extract(html_content, favor_recall=True)
-        if text and len(text.strip()) > 200:
-            return text.strip()
+        if text:
+            cleaned_text = clean_extracted_text(text)
+            if cleaned_text and len(cleaned_text.strip()) > 200:
+                return cleaned_text.strip()
 
         # fallback grezzo con BeautifulSoup: concatena i paragrafi <p>
         soup = BeautifulSoup(html_content, "lxml")
         paragraphs = [p.get_text(strip=True) for p in soup.find_all("p")]
         fallback_text = "\n".join(p for p in paragraphs if p)
-        if fallback_text and len(fallback_text.strip()) > 200:
-            print(f"[INFO] [extractor] Utilizzato fallback BeautifulSoup per {url}")
-            return fallback_text.strip()
+        if fallback_text:
+            cleaned_fallback = clean_extracted_text(fallback_text)
+            if cleaned_fallback and len(cleaned_fallback.strip()) > 200:
+                print(f"[INFO] [extractor] Utilizzato fallback BeautifulSoup per {url}")
+                return cleaned_fallback.strip()
 
     # Livello intermedio: Jina AI Reader (se il download diretto è fallito 403 o ha prodotto testo troppo corto)
     print(f"[INFO] [extractor] Download diretto fallito o testo insufficiente per {url}. Tentativo via Jina AI Reader...")
     jina_text = fetch_via_jina_reader(url)
     if jina_text:
-        return jina_text
+        return clean_extracted_text(jina_text)
 
     print(f"[ATTENZIONE] [extractor] Impossibile estrarre testo dall'articolo (diretto e Jina falliti) per {url}")
     return None
