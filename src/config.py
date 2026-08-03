@@ -23,6 +23,8 @@ MAX_LLM_CLASSIFICATIONS_PER_RUN = int(
     os.environ.get("MAX_LLM_CLASSIFICATIONS_PER_RUN", "60")
 )
 
+MAX_ARTICLE_AGE_DAYS = int(os.environ.get("MAX_ARTICLE_AGE_DAYS", "30"))
+
 BASE_DIR = Path(__file__).resolve().parent
 KEYWORDS_PATH = BASE_DIR / "filtering" / "keywords.yaml"
 

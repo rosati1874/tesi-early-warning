@@ -15,7 +15,11 @@ from src.acquisition.generalist import fetch_generalist_articles
 from src.parsing.extractor import extract_article_text
 from src.filtering.keywords import passes_keyword_filter
 from src.classification.llm_classifier import classify
-from src.config import ENABLE_LLM_CLASSIFICATION, MAX_LLM_CLASSIFICATIONS_PER_RUN
+from src.config import (
+    ENABLE_LLM_CLASSIFICATION,
+    MAX_ARTICLE_AGE_DAYS,
+    MAX_LLM_CLASSIFICATIONS_PER_RUN,
+)
 
 
 def run() -> None:
@@ -37,9 +41,25 @@ def run() -> None:
         print(msg)
         raise RuntimeError(msg)
 
+    # Filtro di freschezza: scarta gli articoli con published_at più vecchio di MAX_ARTICLE_AGE_DAYS giorni
+    now = datetime.now(timezone.utc)
+    cutoff_date = now - timedelta(days=MAX_ARTICLE_AGE_DAYS)
+
+    fresh_articles = []
+    discarded_by_age = 0
+    for raw in raw_articles:
+        pub_at = raw.get("published_at")
+        if pub_at and pub_at < cutoff_date:
+            discarded_by_age += 1
+            continue
+        fresh_articles.append(raw)
+
+    if discarded_by_age > 0:
+        print(f"[INFO] [pipeline] {discarded_by_age} articoli scartati perché pubblicati da oltre {MAX_ARTICLE_AGE_DAYS} giorni")
+
     seen_in_batch = set()
     deduped_raw_articles = []
-    for raw in raw_articles:
+    for raw in fresh_articles:
         url = raw.get("url")
         if url and url not in seen_in_batch:
             seen_in_batch.add(url)
