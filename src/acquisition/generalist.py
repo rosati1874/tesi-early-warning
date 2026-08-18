@@ -8,16 +8,45 @@ testuali e filtrabile per lingua/regione, ed è quindi la scelta principale
 per l'acquisizione generalista in questo scaffold.
 """
 from datetime import datetime, timezone
+import re
+import urllib.request
 from urllib.parse import quote_plus, urlparse
 import feedparser
 from googlenewsdecoder import new_decoderv1
 
-from src.config import GENERALIST_QUERIES
+from src.config import GENERALIST_QUERIES, REQUEST_TIMEOUT_SECONDS
 from src.parsing.extractor import clean_rss_summary
 
 GOOGLE_NEWS_RSS_TEMPLATE = (
     "https://news.google.com/rss/search?q={query}&hl=it-IT&gl=IT&ceid=IT:it"
 )
+
+_BARE_AMPERSAND = re.compile(r"&(?!amp;|lt;|gt;|quot;|apos;|#\d+;|#x[0-9a-fA-F]+;)")
+_FEEDPARSER_USER_AGENT = "UniversalFeedParser/6.0.11 +https://github.com/kurtmckee/feedparser/"
+
+
+def _parse_generalist_feed(feed_url: str):
+    """Legge un feed Google News RSS, con riparazione XML automatica in caso di ampersand non scappati (&)."""
+    parsed = feedparser.parse(feed_url)
+    if parsed.entries:
+        return parsed
+
+    try:
+        req = urllib.request.Request(feed_url, headers={"User-Agent": _FEEDPARSER_USER_AGENT})
+        with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT_SECONDS) as resp:
+            raw = resp.read()
+            if raw:
+                text_xml = raw.decode("utf-8", errors="replace")
+                fixed_xml = _BARE_AMPERSAND.sub("&amp;", text_xml)
+                parsed_sanitized = feedparser.parse(fixed_xml.encode("utf-8"))
+                if parsed_sanitized.entries:
+                    print(f"[INFO] [generalist] Feed Google News per query letto dopo riparazione XML automatica")
+                    return parsed_sanitized
+                return parsed_sanitized
+    except Exception as exc:
+        print(f"[ATTENZIONE] [generalist] Impossibile riparare feed Google News {feed_url}: {exc}")
+
+    return parsed
 
 
 def _resolve_article_url(raw_url: str | None) -> str | None:
@@ -76,8 +105,8 @@ def fetch_generalist_articles(queries: list[str] | None = None) -> list[dict]:
 
     for query in queries:
         feed_url = GOOGLE_NEWS_RSS_TEMPLATE.format(query=quote_plus(query))
-        parsed = feedparser.parse(feed_url)
-        if parsed.bozo and not parsed.entries:
+        parsed = _parse_generalist_feed(feed_url)
+        if not parsed.entries:
             print(f"[ATTENZIONE] [generalist] Impossibile leggere risultati per la query '{query}': "
                   f"{parsed.get('bozo_exception')}")
             continue

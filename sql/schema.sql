@@ -47,10 +47,20 @@ CREATE TABLE IF NOT EXISTS blacklisted_models (
     reason         TEXT
 );
 
+CREATE TABLE IF NOT EXISTS subscribers (
+    id               SERIAL PRIMARY KEY,
+    webhook_url      TEXT UNIQUE NOT NULL,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    active           BOOLEAN NOT NULL DEFAULT true,
+    last_notified_at TIMESTAMPTZ,
+    failure_count    INTEGER NOT NULL DEFAULT 0
+);
+
 CREATE INDEX IF NOT EXISTS idx_articles_signal ON articles (is_epidemic_signal);
 CREATE INDEX IF NOT EXISTS idx_article_versions_article_id ON article_versions (article_id);
 CREATE INDEX IF NOT EXISTS idx_availability_checks_article_id ON availability_checks (article_id);
 CREATE INDEX IF NOT EXISTS idx_blacklisted_models_expires ON blacklisted_models (expires_at);
+CREATE INDEX IF NOT EXISTS idx_subscribers_active ON subscribers (active);
 
 CREATE INDEX IF NOT EXISTS idx_articles_pending_classification
 ON articles (passed_keyword_filter, is_epidemic_signal, first_seen_at);

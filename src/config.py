@@ -19,6 +19,10 @@ ENABLE_LLM_CLASSIFICATION = os.environ.get(
     "ENABLE_LLM_CLASSIFICATION", "false"
 ).lower() == "true"
 
+ENABLE_WEBHOOK_NOTIFICATIONS = os.environ.get(
+    "ENABLE_WEBHOOK_NOTIFICATIONS", "false"
+).lower() == "true"
+
 MAX_LLM_CLASSIFICATIONS_PER_RUN = int(
     os.environ.get("MAX_LLM_CLASSIFICATIONS_PER_RUN", "60")
 )

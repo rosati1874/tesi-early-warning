@@ -73,3 +73,14 @@ class BlacklistedModel(Base):
     blacklisted_at = Column(TIMESTAMP(timezone=True), default=datetime.utcnow)
     expires_at = Column(TIMESTAMP(timezone=True), nullable=False)
     reason = Column(Text)
+
+
+class Subscriber(Base):
+    __tablename__ = "subscribers"
+
+    id = Column(Integer, primary_key=True)
+    webhook_url = Column(Text, unique=True, nullable=False)
+    created_at = Column(TIMESTAMP(timezone=True), default=datetime.utcnow, nullable=False)
+    active = Column(Boolean, default=True, nullable=False)
+    last_notified_at = Column(TIMESTAMP(timezone=True))
+    failure_count = Column(Integer, default=0, nullable=False)

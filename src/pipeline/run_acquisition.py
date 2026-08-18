@@ -15,6 +15,7 @@ from src.acquisition.generalist import fetch_generalist_articles
 from src.parsing.extractor import extract_article_text
 from src.filtering.keywords import passes_keyword_filter
 from src.classification.llm_classifier import classify
+from src.notifications.webhook import notify_new_signals
 from src.config import (
     ENABLE_LLM_CLASSIFICATION,
     MAX_ARTICLE_AGE_DAYS,
@@ -135,6 +136,7 @@ def run() -> None:
     print(f"[INFO] [pipeline] {new_count} nuovi articoli salvati nel database")
 
     # Fase di classificazione LLM (priorità agli articoli in arretrato con testo effettivo)
+    newly_classified_signals = []
     if not ENABLE_LLM_CLASSIFICATION:
         print("[INFO] [pipeline] Classificazione LLM disattivata (ENABLE_LLM_CLASSIFICATION=false)")
     elif MAX_LLM_CLASSIFICATIONS_PER_RUN <= 0:
@@ -175,11 +177,21 @@ def run() -> None:
                         art.llm_model = res.get("llm_model")
                         session.commit()
                         classified_count += 1
+
+                        if res["is_epidemic_signal"] is True:
+                            newly_classified_signals.append(art)
                 except Exception as exc:
                     print(f"[ATTENZIONE] [pipeline] Errore nella classificazione dell'articolo ID {art.id} (tentativo {art.classification_attempts}/3): {exc}")
                     session.rollback()
 
             print(f"[INFO] [pipeline] Classificazione LLM completata: {classified_count}/{len(pending_articles)} articoli classificati")
+
+    # Fase di notifica webhook pub-sub per i nuovi segnali epidemici identificati nel run
+    if newly_classified_signals:
+        try:
+            notify_new_signals(session, newly_classified_signals)
+        except Exception as exc:
+            print(f"[ATTENZIONE] [pipeline] Errore imprevisto durante l'invio delle notifiche webhook: {exc}")
 
     print("[INFO] [pipeline] Pipeline di acquisizione completata con successo")
 
