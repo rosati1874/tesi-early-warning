@@ -74,6 +74,17 @@ WHERE passed_keyword_filter = true AND is_epidemic_signal IS NULL AND raw_text I
 
 
 -- ============================================================
+-- Abilitazione Row Level Security (RLS) per Supabase Security
+-- ============================================================
+
+ALTER TABLE articles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE article_versions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE availability_checks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE blacklisted_models ENABLE ROW LEVEL SECURITY;
+ALTER TABLE subscribers ENABLE ROW LEVEL SECURITY;
+
+
+-- ============================================================
 -- Migrazioni una tantum (già eseguite — mantenute solo come
 -- riferimento storico, non necessarie su un database nuovo)
 -- ============================================================
