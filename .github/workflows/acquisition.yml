@@ -27,9 +27,3 @@ jobs:
           ENABLE_WEBHOOK_NOTIFICATIONS: ${{ vars.ENABLE_WEBHOOK_NOTIFICATIONS }}
           PYTHONUNBUFFERED: "1"
         run: python -u -m src.pipeline.run_acquisition
-
-      - name: Esegui diagnostica conteggi DB Supabase
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          PYTHONUNBUFFERED: "1"
-        run: python -u scripts/check_db_stats.py
