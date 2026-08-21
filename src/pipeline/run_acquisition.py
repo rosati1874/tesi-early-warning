@@ -32,6 +32,9 @@ def run() -> None:
         print(msg)
         raise RuntimeError(msg) from exc
 
+    # -------------------------------------------------------------------------
+    # FASE 1: ACQUISIZIONE ARTICOLI GREZZI (FEED MIRATI + QUERY GENERALISTE)
+    # -------------------------------------------------------------------------
     targeted = fetch_targeted_articles()
     generalist = fetch_generalist_articles()
     raw_articles = targeted + generalist
@@ -42,7 +45,10 @@ def run() -> None:
         print(msg)
         raise RuntimeError(msg)
 
-    # Filtro di freschezza: scarta gli articoli con published_at più vecchio di MAX_ARTICLE_AGE_DAYS giorni
+    # -------------------------------------------------------------------------
+    # FASE 2: FILTRO DI FRESCHEZZA (MAX_ARTICLE_AGE_DAYS, DEFAULT 30 GIORNI)
+    # -------------------------------------------------------------------------
+    # Scarta gli articoli vecchi con data nota, mantenendo quelli con published_at IS NULL
     now = datetime.now(timezone.utc)
     cutoff_date = now - timedelta(days=MAX_ARTICLE_AGE_DAYS)
 
@@ -58,6 +64,9 @@ def run() -> None:
     if discarded_by_age > 0:
         print(f"[INFO] [pipeline] {discarded_by_age} articoli scartati perché pubblicati da oltre {MAX_ARTICLE_AGE_DAYS} giorni")
 
+    # -------------------------------------------------------------------------
+    # FASE 3: DEDUPLICAZIONE IN-BATCH (URL UNICI NELL'ESECUZIONE CORRENTE)
+    # -------------------------------------------------------------------------
     seen_in_batch = set()
     deduped_raw_articles = []
     for raw in fresh_articles:
@@ -66,6 +75,9 @@ def run() -> None:
             seen_in_batch.add(url)
             deduped_raw_articles.append(raw)
 
+    # -------------------------------------------------------------------------
+    # FASE 4: ESTRAZIONE TESTO, DEDUPLICAZIONE DB, FILTRO KEYWORD E SALVATAGGIO
+    # -------------------------------------------------------------------------
     new_count = 0
     for raw in deduped_raw_articles:
         try:
@@ -74,7 +86,7 @@ def run() -> None:
             if existing_url:
                 continue
 
-            # Deduplicazione conservativa per titolo esatto normalizzato + fonte + finestra di 48 ore
+            # Deduplicazione conservativa: stesso titolo normalizzato + fonte + finestra di 48 ore
             raw_title = raw.get("title")
             raw_source = raw.get("source")
             if raw_title and raw_source:
@@ -93,10 +105,10 @@ def run() -> None:
                     print(f"[INFO] [pipeline] Articolo duplicato (stesso titolo/fonte) scartato: {raw['url']}")
                     continue
 
+            # Estrazione testo completo (trafilatura -> Jina AI Reader -> BeautifulSoup)
             text = extract_article_text(raw["url"])
             if not text:
-                # riserva: usa il riassunto già incluso nel feed RSS, quando
-                # la pagina completa non è raggiungibile.
+                # Riserva: usa il riassunto già incluso nel feed RSS, quando la pagina non è raggiungibile
                 text = raw.get("rss_summary")
                 if text:
                     print(f"[INFO] [pipeline] Utilizzato rss_summary per l'articolo: {raw['url']}")
@@ -104,6 +116,7 @@ def run() -> None:
             if not text:
                 print(f"[INFO] [pipeline] Salvataggio articolo senza corpo/solo metadati: '{raw.get('title')}'")
 
+            # Valutazione filtro keyword (epidemico + veterinario)
             passed_filter = passes_keyword_filter(text or "", raw.get("title", ""))
             if not passed_filter:
                 print(f"[INFO] [pipeline] Articolo scartato dal filtro keyword: '{raw.get('title')}'")
@@ -135,7 +148,9 @@ def run() -> None:
 
     print(f"[INFO] [pipeline] {new_count} nuovi articoli salvati nel database")
 
-    # Fase di classificazione LLM (priorità agli articoli in arretrato con testo effettivo)
+    # -------------------------------------------------------------------------
+    # FASE 5: CLASSIFICAZIONE LLM (GEMINI CON FALLBACK E GESTIONE ARRETRATO)
+    # -------------------------------------------------------------------------
     newly_classified_signals = []
     if not ENABLE_LLM_CLASSIFICATION:
         print("[INFO] [pipeline] Classificazione LLM disattivata (ENABLE_LLM_CLASSIFICATION=false)")
@@ -186,7 +201,9 @@ def run() -> None:
 
             print(f"[INFO] [pipeline] Classificazione LLM completata: {classified_count}/{len(pending_articles)} articoli classificati")
 
-    # Fase di notifica webhook pub-sub per i nuovi segnali epidemici identificati nel run
+    # -------------------------------------------------------------------------
+    # FASE 6: NOTIFICA WEBHOOK PUB-SUB PER I NUOVI SEGNALI EPIDEMICI IDENTIFICATI
+    # -------------------------------------------------------------------------
     if newly_classified_signals:
         try:
             notify_new_signals(session, newly_classified_signals)

@@ -9,6 +9,7 @@ Base = declarative_base()
 
 
 class Article(Base):
+    """Rappresenta un articolo di notizie acquisito, filtrato e classificato dal sistema."""
     __tablename__ = "articles"
     __table_args__ = (
         Index("idx_articles_pending_classification", "passed_keyword_filter", "is_epidemic_signal", "first_seen_at"),
@@ -42,6 +43,7 @@ class Article(Base):
 
 
 class ArticleVersion(Base):
+    """Traccia la cronologia e gli snapshot del testo di un articolo nel tempo (RF-06)."""
     __tablename__ = "article_versions"
 
     id = Column(Integer, primary_key=True)
@@ -54,6 +56,7 @@ class ArticleVersion(Base):
 
 
 class AvailabilityCheck(Base):
+    """Registra l'esito dei controlli di disponibilità HTTP per ciascun articolo (RF-06)."""
     __tablename__ = "availability_checks"
 
     id = Column(Integer, primary_key=True)
@@ -66,6 +69,7 @@ class AvailabilityCheck(Base):
 
 
 class BlacklistedModel(Base):
+    """Memorizza temporaneamente i modelli LLM disattivati per superamento quota (errore 429)."""
     __tablename__ = "blacklisted_models"
 
     id = Column(Integer, primary_key=True)
@@ -76,6 +80,7 @@ class BlacklistedModel(Base):
 
 
 class Subscriber(Base):
+    """Rappresenta gli iscritti al servizio di notifica Webhook Pub-Sub per i nuovi segnali epidemici."""
     __tablename__ = "subscribers"
 
     id = Column(Integer, primary_key=True)

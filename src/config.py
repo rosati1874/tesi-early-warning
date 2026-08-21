@@ -19,14 +19,18 @@ ENABLE_LLM_CLASSIFICATION = os.environ.get(
     "ENABLE_LLM_CLASSIFICATION", "false"
 ).lower() == "true"
 
+# Interruttore per le notifiche webhook pub-sub: quando è "false" (default),
+# la pipeline non effettua query alla tabella subscribers né invia chiamate HTTP POST.
 ENABLE_WEBHOOK_NOTIFICATIONS = os.environ.get(
     "ENABLE_WEBHOOK_NOTIFICATIONS", "false"
 ).lower() == "true"
 
+# Numero massimo di articoli da inviare al modello LLM ad ogni esecuzione (default 60)
 MAX_LLM_CLASSIFICATIONS_PER_RUN = int(
     os.environ.get("MAX_LLM_CLASSIFICATIONS_PER_RUN", "60")
 )
 
+# Filtro di freschezza: scarta gli articoli pubblicati da più di N giorni (default 30)
 MAX_ARTICLE_AGE_DAYS = int(os.environ.get("MAX_ARTICLE_AGE_DAYS", "30"))
 
 BASE_DIR = Path(__file__).resolve().parent
