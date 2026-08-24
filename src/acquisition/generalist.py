@@ -91,8 +91,8 @@ def _extract_source_name(entry: dict, resolved_url: str | None = None) -> str:
                 domain = domain.removeprefix("www.").strip()
                 if domain and domain != "news.google.com":
                     return domain
-        except Exception:
-            pass
+        except Exception as exc:
+            print(f"[ATTENZIONE] [generalist] Impossibile estrarre il dominio dall'URL '{resolved_url}': {exc}")
 
     # 3. Riserva generica
     return "google_news"

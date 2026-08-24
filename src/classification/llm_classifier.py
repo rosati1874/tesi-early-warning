@@ -97,7 +97,8 @@ def _load_blacklisted_models_from_db() -> set[str]:
         )
         session.close()
         return {r.model_name for r in rows}
-    except Exception:
+    except Exception as exc:
+        print(f"[ATTENZIONE] [llm_classifier] Impossibile caricare i modelli in blacklist dal database: {exc}")
         return set()
 
 
