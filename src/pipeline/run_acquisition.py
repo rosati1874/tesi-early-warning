@@ -5,7 +5,7 @@ classificazione LLM -> storage.
 
 Richiamato dal workflow .github/workflows/acquisition.yml.
 """
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from sqlalchemy import func
 
 from src.db.connection import get_session
@@ -13,6 +13,11 @@ from src.db.models import Article
 from src.acquisition.targeted import fetch_targeted_articles
 from src.acquisition.generalist import fetch_generalist_articles
 from src.parsing.extractor import extract_article_text
+from src.filtering.prefilter import (
+    filter_by_freshness,
+    deduplicate_in_batch,
+    is_duplicate_in_db,
+)
 from src.filtering.keywords import passes_keyword_filter
 from src.classification.llm_classifier import classify
 from src.notifications.webhook import notify_new_signals
@@ -46,34 +51,14 @@ def run() -> None:
         raise RuntimeError(msg)
 
     # -------------------------------------------------------------------------
-    # FASE 2: FILTRO DI FRESCHEZZA (MAX_ARTICLE_AGE_DAYS, DEFAULT 30 GIORNI)
+    # FASE 2: FILTRO DI FRESCHEZZA (MAX_ARTICLE_AGE_DAYS, DEFAULT 30 GIORNI) (RF-09)
     # -------------------------------------------------------------------------
-    # Scarta gli articoli vecchi con data nota, mantenendo quelli con published_at IS NULL
-    now = datetime.now(timezone.utc)
-    cutoff_date = now - timedelta(days=MAX_ARTICLE_AGE_DAYS)
-
-    fresh_articles = []
-    discarded_by_age = 0
-    for raw in raw_articles:
-        pub_at = raw.get("published_at")
-        if pub_at and pub_at < cutoff_date:
-            discarded_by_age += 1
-            continue
-        fresh_articles.append(raw)
-
-    if discarded_by_age > 0:
-        print(f"[INFO] [pipeline] {discarded_by_age} articoli scartati perché pubblicati da oltre {MAX_ARTICLE_AGE_DAYS} giorni")
+    fresh_articles = filter_by_freshness(raw_articles, MAX_ARTICLE_AGE_DAYS)
 
     # -------------------------------------------------------------------------
-    # FASE 3: DEDUPLICAZIONE IN-BATCH (URL UNICI NELL'ESECUZIONE CORRENTE)
+    # FASE 3: DEDUPLICAZIONE IN-BATCH (URL UNICI NELL'ESECUZIONE CORRENTE) (RF-08)
     # -------------------------------------------------------------------------
-    seen_in_batch = set()
-    deduped_raw_articles = []
-    for raw in fresh_articles:
-        url = raw.get("url")
-        if url and url not in seen_in_batch:
-            seen_in_batch.add(url)
-            deduped_raw_articles.append(raw)
+    deduped_raw_articles = deduplicate_in_batch(fresh_articles)
 
     # -------------------------------------------------------------------------
     # FASE 4: ESTRAZIONE TESTO, DEDUPLICAZIONE DB, FILTRO KEYWORD E SALVATAGGIO
@@ -81,29 +66,9 @@ def run() -> None:
     new_count = 0
     for raw in deduped_raw_articles:
         try:
-            # RF-03: evita di rielaborare articoli già acquisiti in precedenza per URL esatto
-            existing_url = session.query(Article).filter_by(url=raw["url"]).first()
-            if existing_url:
+            # Controllo duplicati nel database (URL esatto o titolo+fonte entro 48 ore)
+            if is_duplicate_in_db(session, raw):
                 continue
-
-            # Deduplicazione conservativa: stesso titolo normalizzato + fonte + finestra di 48 ore
-            raw_title = raw.get("title")
-            raw_source = raw.get("source")
-            if raw_title and raw_source:
-                normalized_title = raw_title.strip().lower()
-                cutoff_time = datetime.now(timezone.utc) - timedelta(hours=48)
-                existing_title_dup = (
-                    session.query(Article)
-                    .filter(
-                        Article.source == raw_source,
-                        func.lower(func.trim(Article.title)) == normalized_title,
-                        Article.first_seen_at >= cutoff_time,
-                    )
-                    .first()
-                )
-                if existing_title_dup:
-                    print(f"[INFO] [pipeline] Articolo duplicato (stesso titolo/fonte) scartato: {raw['url']}")
-                    continue
 
             # Estrazione testo completo (trafilatura -> Jina AI Reader -> BeautifulSoup)
             text = extract_article_text(raw["url"])
