@@ -12,9 +12,10 @@ import re
 import urllib.request
 from urllib.parse import quote_plus, urlparse
 import feedparser
+import requests
 from googlenewsdecoder import new_decoderv1
 
-from src.config import GENERALIST_QUERIES, REQUEST_TIMEOUT_SECONDS
+from src.config import GENERALIST_QUERIES, HTTP_USER_AGENT, REQUEST_TIMEOUT_SECONDS
 from src.parsing.extractor import clean_rss_summary
 
 GOOGLE_NEWS_RSS_TEMPLATE = (
@@ -51,20 +52,45 @@ def _parse_generalist_feed(feed_url: str):
 
 def _resolve_article_url(raw_url: str | None) -> str | None:
     """Decodifica un link cifrato di Google News nell'URL reale di destinazione dell'articolo.
-    In caso di errore, logga un avviso [ATTENZIONE] e restituisce l'URL originale come riserva.
+
+    Strategia multistadio:
+    1. Tenta la decodifica offline con googlenewsdecoder (new_decoderv1).
+    2. Se fallisce o restituisce ancora un URL Google News, tenta l'inseguimento dei redirect HTTP.
+    3. Come riserva finale, logga un avviso [ATTENZIONE] e restituisce l'URL originale invariato.
     """
     if not raw_url:
         return None
 
     if "news.google.com" in raw_url:
+        # Livello 1: Tentativo di decodifica offline con googlenewsdecoder
+        decoded_url = None
         try:
-            res = new_decoderv1(raw_url)
+            res = new_decoderv1(raw_url, interval=1)
             if isinstance(res, dict) and res.get("status") and res.get("decoded_url"):
-                return res["decoded_url"]
+                decoded_url = res["decoded_url"]
             elif isinstance(res, str) and res.startswith("http"):
-                return res
+                decoded_url = res
+        except Exception:
+            pass
+
+        if decoded_url and "news.google.com" not in decoded_url:
+            return decoded_url
+
+        # Livello 2: Fallback tramite inseguimento dei redirect HTTP
+        try:
+            resp = requests.get(
+                raw_url,
+                allow_redirects=True,
+                timeout=REQUEST_TIMEOUT_SECONDS,
+                headers={"User-Agent": HTTP_USER_AGENT},
+            )
+            if resp.status_code == 200 and resp.url and "news.google.com" not in resp.url:
+                return resp.url
         except Exception as exc:
-            print(f"[ATTENZIONE] [generalist] Impossibile decodificare URL Google News '{raw_url}': {exc}")
+            print(f"[ATTENZIONE] [generalist] Impossibile decodificare URL Google News '{raw_url}' anche via HTTP redirect: {exc}")
+            return raw_url
+
+        print(f"[ATTENZIONE] [generalist] Impossibile decodificare URL Google News '{raw_url}': sia decoder sia HTTP redirect hanno restituito link Google News")
 
     return raw_url
 
