@@ -3,7 +3,7 @@
 Fornisce le funzioni per:
 1. Filtrare gli articoli in base alla data di pubblicazione (freschezza).
 2. Deduplicare gli articoli all'interno del batch di acquisizione corrente.
-3. Verificare la presenza di duplicati già salvati nel database (per URL esatto o titolo+fonte entro 48 ore).
+3. Verificare la presenza di duplicati già salvati nel database (per URL esatto o titolo+dominio entro 48 ore).
 """
 from urllib.parse import urlparse
 from datetime import datetime, timedelta, timezone
@@ -97,9 +97,10 @@ def is_duplicate_in_db(session: Session, raw: dict, title_dedup_window_hours: in
         
         if candidates:
             raw_domain = _extract_domain(raw_url)
-            for candidate in candidates:
-                if _extract_domain(candidate.url) == raw_domain:
-                    print(f"[INFO] [prefilter] Articolo duplicato (stesso titolo/fonte) scartato: {raw_url}")
-                    return True
+            if raw_domain:
+                for candidate in candidates:
+                    if _extract_domain(candidate.url) == raw_domain:
+                        print(f"[INFO] [prefilter] Articolo duplicato (stesso titolo/dominio) scartato: {raw_url}")
+                        return True
 
     return False
