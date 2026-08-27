@@ -9,7 +9,6 @@ per l'acquisizione generalista in questo scaffold.
 """
 from datetime import datetime, timezone
 import re
-import urllib.request
 from urllib.parse import quote_plus, urlparse
 import feedparser
 import requests
@@ -23,27 +22,35 @@ GOOGLE_NEWS_RSS_TEMPLATE = (
 )
 
 _BARE_AMPERSAND = re.compile(r"&(?!amp;|lt;|gt;|quot;|apos;|#\d+;|#x[0-9a-fA-F]+;)")
-_FEEDPARSER_USER_AGENT = "UniversalFeedParser/6.0.11 +https://github.com/kurtmckee/feedparser/"
 
 
 def _parse_generalist_feed(feed_url: str):
     """Legge un feed Google News RSS, con riparazione XML automatica in caso di ampersand non scappati (&)."""
-    parsed = feedparser.parse(feed_url)
+    try:
+        resp = requests.get(
+            feed_url,
+            headers={"User-Agent": HTTP_USER_AGENT},
+            timeout=REQUEST_TIMEOUT_SECONDS
+        )
+        resp.raise_for_status()
+        raw = resp.content
+    except Exception as exc:
+        print(f"[ATTENZIONE] [generalist] Impossibile scaricare feed Google News {feed_url}: {exc}")
+        return feedparser.FeedParserDict(entries=[])
+
+    parsed = feedparser.parse(raw)
     if parsed.entries:
         return parsed
 
     try:
-        req = urllib.request.Request(feed_url, headers={"User-Agent": _FEEDPARSER_USER_AGENT})
-        with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT_SECONDS) as resp:
-            raw = resp.read()
-            if raw:
-                text_xml = raw.decode("utf-8", errors="replace")
-                fixed_xml = _BARE_AMPERSAND.sub("&amp;", text_xml)
-                parsed_sanitized = feedparser.parse(fixed_xml.encode("utf-8"))
-                if parsed_sanitized.entries:
-                    print(f"[INFO] [generalist] Feed Google News per query letto dopo riparazione XML automatica")
-                    return parsed_sanitized
+        if raw:
+            text_xml = raw.decode("utf-8", errors="replace")
+            fixed_xml = _BARE_AMPERSAND.sub("&amp;", text_xml)
+            parsed_sanitized = feedparser.parse(fixed_xml.encode("utf-8"))
+            if parsed_sanitized.entries:
+                print(f"[INFO] [generalist] Feed Google News per query letto dopo riparazione XML automatica")
                 return parsed_sanitized
+            return parsed_sanitized
     except Exception as exc:
         print(f"[ATTENZIONE] [generalist] Impossibile riparare feed Google News {feed_url}: {exc}")
 
@@ -65,7 +72,7 @@ def _resolve_article_url(raw_url: str | None) -> str | None:
         # Livello 1: Tentativo di decodifica offline con googlenewsdecoder
         decoded_url = None
         try:
-            res = new_decoderv1(raw_url, interval=1)
+            res = new_decoderv1(raw_url)
             if isinstance(res, dict) and res.get("status") and res.get("decoded_url"):
                 decoded_url = res["decoded_url"]
             elif isinstance(res, str) and res.startswith("http"):
@@ -85,6 +92,7 @@ def _resolve_article_url(raw_url: str | None) -> str | None:
                 headers={"User-Agent": HTTP_USER_AGENT},
             )
             if resp.status_code == 200 and resp.url and "news.google.com" not in resp.url:
+                print(f"[INFO] [generalist] URL Google News decodificato tramite fallback HTTP redirect: {resp.url}")
                 return resp.url
         except Exception as exc:
             print(f"[ATTENZIONE] [generalist] Impossibile decodificare URL Google News '{raw_url}' anche via HTTP redirect: {exc}")
