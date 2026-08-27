@@ -5,11 +5,23 @@ Fornisce le funzioni per:
 2. Deduplicare gli articoli all'interno del batch di acquisizione corrente.
 3. Verificare la presenza di duplicati già salvati nel database (per URL esatto o titolo+fonte entro 48 ore).
 """
+from urllib.parse import urlparse
 from datetime import datetime, timedelta, timezone
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from src.db.models import Article
+
+
+def _extract_domain(url: str | None) -> str | None:
+    """Estrae il dominio (netloc) dall'URL, lo normalizza in minuscolo e rimuove il prefisso www."""
+    if not url:
+        return None
+    try:
+        domain = urlparse(url).netloc.lower()
+        return domain.removeprefix("www.").strip() if domain else None
+    except Exception:
+        return None
 
 
 def filter_by_freshness(raw_articles: list[dict], max_age_days: int) -> list[dict]:
@@ -52,8 +64,16 @@ def is_duplicate_in_db(session: Session, raw: dict, title_dedup_window_hours: in
 
     Criteri di deduplicazione:
     (a) Esistenza di un articolo con lo stesso URL esatto.
-    (b) Esistenza di un articolo con la stessa fonte e lo stesso titolo normalizzato (strip + lower)
-        primo visto (first_seen_at) entro le ultime title_dedup_window_hours ore (default 48).
+    (b) Esistenza di un articolo con lo stesso dominio (estratto dall'URL) e lo stesso
+        titolo normalizzato (strip + lower) primo visto (first_seen_at) entro le ultime
+        title_dedup_window_hours ore (default 48).
+        
+    Nota sul limite residuo per il controllo (b): il confronto sul titolo resta un confronto
+    ESATTO dopo una normalizzazione minima (strip + lower). Due titoli che descrivono lo stesso
+    evento ma sono formulati in modo anche solo leggermente diverso tra i due canali (es. 
+    sottotitoli diversi, troncamenti differenti) continueranno a non essere riconosciuti come 
+    duplicati. Questo fix risolve solo il mismatch sul campo source (usando il dominio), non 
+    introduce un confronto di similarità testuale.
     """
     raw_url = raw.get("url")
     if not raw_url:
@@ -64,23 +84,22 @@ def is_duplicate_in_db(session: Session, raw: dict, title_dedup_window_hours: in
     if existing_url:
         return True
 
-    # (b) Controllo titolo normalizzato + fonte entro finestra temporale
+    # (b) Controllo titolo normalizzato + dominio entro finestra temporale
     raw_title = raw.get("title")
-    raw_source = raw.get("source")
-    if raw_title and raw_source:
+    if raw_title:
         normalized_title = raw_title.strip().lower()
         cutoff_time = datetime.now(timezone.utc) - timedelta(hours=title_dedup_window_hours)
-        existing_title_dup = (
-            session.query(Article)
-            .filter(
-                Article.source == raw_source,
-                func.lower(func.trim(Article.title)) == normalized_title,
-                Article.first_seen_at >= cutoff_time,
-            )
-            .first()
-        )
-        if existing_title_dup:
-            print(f"[INFO] [prefilter] Articolo duplicato (stesso titolo/fonte) scartato: {raw_url}")
-            return True
+        
+        candidates = session.query(Article).filter(
+            func.lower(func.trim(Article.title)) == normalized_title,
+            Article.first_seen_at >= cutoff_time,
+        ).all()
+        
+        if candidates:
+            raw_domain = _extract_domain(raw_url)
+            for candidate in candidates:
+                if _extract_domain(candidate.url) == raw_domain:
+                    print(f"[INFO] [prefilter] Articolo duplicato (stesso titolo/fonte) scartato: {raw_url}")
+                    return True
 
     return False
