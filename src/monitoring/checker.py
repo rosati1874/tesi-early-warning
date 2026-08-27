@@ -76,10 +76,13 @@ def check_article(session, article: Article) -> None:
 
 
 def run_monitoring_cycle(session) -> None:
-    """Esegue un ciclo di monitoraggio su tutti gli articoli rilevanti."""
+    """Esegue un ciclo di monitoraggio su tutti gli articoli rilevanti con stato attivo."""
     relevant_articles = (
         session.query(Article)
-        .filter(Article.is_epidemic_signal.is_(True))
+        .filter(
+            Article.is_epidemic_signal.is_(True),
+            Article.status == "active",
+        )
         .all()
     )
     print(f"[INFO] [monitoring] Avvio ciclo di monitoraggio: {len(relevant_articles)} articoli da controllare")
