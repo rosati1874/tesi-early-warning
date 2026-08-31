@@ -49,6 +49,16 @@ mantenere acceso.
 1. Vai su https://aistudio.google.com/apikey e genera una API key gratuita.
 2. Copiala come `GEMINI_API_KEY`.
 
+### 4. Sviluppo locale (facoltativo, utile in Antigravity)
+```bash
+python -m venv .venv
+source .venv/bin/activate  # su Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+cp .env.example .env   # poi compila .env con le tue credenziali
+python -m src.pipeline.run_acquisition
+python -m src.pipeline.run_monitoring
+```
+
 ### 5. Iscrizione al canale di notifica (per applicazioni terze) (RF-07)
 Le applicazioni terze possono registrare il proprio endpoint webhook per ricevere notifiche HTTP POST in tempo reale sui nuovi segnali epidemici rilevati, senza richiedere modifiche lato server. La registrazione sfrutta direttamente l'API REST automatica di Supabase (PostgREST) protetta via Row-Level Security (RLS).
 
@@ -66,15 +76,6 @@ curl -X POST "https://<PROJECT_REF>.supabase.co/rest/v1/subscribers" \
 - `<PUBLISHABLE_API_KEY>`: **Settings → API Keys**, scheda **"Publishable and secret API keys"**, formato `sb_publishable_...` (o la chiave `anon` classica).
 
 *Nota sulla sicurezza:* Le policy RLS su Supabase garantiscono che il ruolo pubblico `anon` possa solo effettuare `INSERT` con stato iniziale valido (`active = true`, `failure_count = 0`, `last_notified_at IS NULL`) e richiedono l'uso esclusivo del protocollo HTTPS. Le operazioni di lettura (`SELECT`), modifica (`UPDATE`) o cancellazione (`DELETE`) restano inaccessibili al pubblico.
-
-```bash
-python -m venv .venv
-source .venv/bin/activate  # su Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-cp .env.example .env   # poi compila .env con le tue credenziali
-python -m src.pipeline.run_acquisition
-python -m src.pipeline.run_monitoring
-```
 
 ## Note importanti
 
