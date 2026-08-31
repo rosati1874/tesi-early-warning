@@ -70,8 +70,8 @@ Esempio di invio richiesta di iscrizione via `curl`:
 ```bash
 curl -X POST "https://<PROJECT_REF>.supabase.co/rest/v1/subscription_requests" \
   -H "apikey: <PUBLISHABLE_API_KEY>" \
-  -H "Authorization: Bearer <PUBLISHABLE_API_KEY>" \
   -H "Content-Type: application/json" \
+  -H "Prefer: return=minimal" \
   -d '{
     "webhook_url": "https://example.com/webhook",
     "organization_name": "Istituto di Ricerca Salute",

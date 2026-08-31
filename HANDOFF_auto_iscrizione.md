@@ -47,6 +47,7 @@ Dopo l'esecuzione della migrazione SQL v2 nell'SQL Editor di Supabase, eseguire 
    curl -i -X POST "https://<PROJECT_REF>.supabase.co/rest/v1/subscription_requests" \
      -H "apikey: <PUBLISHABLE_API_KEY>" \
      -H "Content-Type: application/json" \
+     -H "Prefer: return=minimal" \
      -d '{
        "webhook_url": "https://esempio.it/webhook-test",
        "organization_name": "Ente Test",
