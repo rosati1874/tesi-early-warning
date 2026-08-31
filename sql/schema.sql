@@ -146,7 +146,7 @@ CREATE POLICY subscription_requests_public_submit
     FOR INSERT
     TO anon
     WITH CHECK (
-        (status IS NULL OR status = 'pending')
+        status = 'pending'
         AND reviewed_at IS NULL
     );
 
