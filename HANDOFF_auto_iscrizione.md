@@ -72,3 +72,24 @@ Dopo l'esecuzione della migrazione SQL v2 nell'SQL Editor di Supabase, eseguire 
 - **Approvazione Operatore**: Gli esempi SQL per approvare o rifiutare le richieste sono documentati in `sql/schema.sql` e nel `README.md`.
 - **Aggiornamento Tesi**: Nel Capitolo 5/6 della tesi è opportuno specificare l'adozione del modello v2 a due fasi (richiesta + approvazione) a garanzia di sicurezza e governance istituzionale.
 - **Riferimenti Incrociati**: In sospeso l'allineamento della numerazione dei paragrafi del Capitolo 4 richiamati nei Capitoli 2, 7 e 8.
+
+---
+
+## 5. Esito Verifiche End-to-End e Chiarimento Tecnico
+
+### Esito dei Test di Produzione
+La verifica end-to-end sul database Supabase di produzione è stata completata con successo:
+
+1. **Test 1 — Invio richiesta su `/rest/v1/subscription_requests`**:
+   - Richiesta `POST` senza campo `status`, con header `apikey` e `Prefer: return=minimal`.
+   - **Risultato**: **`HTTP 201 Created`** (Richiesta salvata correttamente in stato `pending`).
+
+2. **Test 2 — Inserimento diretto su `/rest/v1/subscribers` (Vecchio Endpoint v1)**:
+   - Richiesta `POST` diretta sulla tabella `subscribers`.
+   - **Risultato**: **`HTTP 401 Unauthorized`** (`permission denied for table subscribers`).
+   - **Conferma**: Il vecchio endpoint di auto-iscrizione diretta è sbarrato con successo.
+
+### Chiarimento sul Falso Indizio dell'Header `Authorization`
+L'errore `HTTP 401 / 42501` riscontrato nelle fasi intermedie di test quando si usava `Prefer: return=representation` era causato dal fatto che PostgREST, per restituire la rappresentazione del record inserito, tenta di eseguire una `SELECT` automatica sulla riga appena creata. Poiché la tabella `subscription_requests` non ha (giustamente) una policy di lettura pubblica (`SELECT`), l'operazione veniva bloccata con violazione di RLS.
+
+L'uso dell'header `Authorization: Bearer` era stato una variazione coincidente e non rappresentava un requisito reale di autenticazione. Per le applicazioni terze, il flusso documentato nel `README.md` (con il solo header `apikey`, `Prefer: return=minimal` e nessun header `Authorization`) è quello corretto, valido ed operante.
