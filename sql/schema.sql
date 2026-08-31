@@ -95,3 +95,21 @@ UPDATE articles
 SET source = regexp_replace(split_part(split_part(url, '//', 2), '/', 1), '^www\.', '')
 WHERE source = 'google_news'
   AND url NOT LIKE '%news.google.com%';
+
+
+-- ============================================================
+-- Auto-iscrizione pubblica al canale di notifica (RF-07)
+-- ============================================================
+
+-- Vincolo CHECK: accetta solo URL con protocollo HTTPS
+ALTER TABLE subscribers ADD CONSTRAINT subscribers_webhook_url_https CHECK (webhook_url ~ '^https://');
+
+-- Policy RLS: permette l'inserimento pubblico (anon) solo con stato iniziale corretto
+CREATE POLICY subscribers_public_self_register ON subscribers
+FOR INSERT TO anon
+WITH CHECK (active = true AND failure_count = 0 AND last_notified_at IS NULL);
+
+-- Privilegi minimi espliciti per il ruolo pubblico anon
+GRANT INSERT ON subscribers TO anon;
+GRANT USAGE, SELECT ON SEQUENCE subscribers_id_seq TO anon;
+
