@@ -144,18 +144,18 @@ DROP POLICY IF EXISTS subscription_requests_public_submit ON subscription_reques
 CREATE POLICY subscription_requests_public_submit
     ON subscription_requests
     FOR INSERT
-    TO anon
+    TO public
     WITH CHECK (
-        status = 'pending'
+        (status IS NULL OR status = 'pending')
         AND reviewed_at IS NULL
     );
 
-GRANT INSERT ON subscription_requests TO anon;
-GRANT USAGE, SELECT ON SEQUENCE subscription_requests_id_seq TO anon;
+GRANT INSERT ON subscription_requests TO public;
+GRANT USAGE, SELECT ON SEQUENCE subscription_requests_id_seq TO public;
 
 DROP POLICY IF EXISTS subscribers_public_self_register ON subscribers;
-REVOKE INSERT ON subscribers FROM anon;
-REVOKE USAGE, SELECT ON SEQUENCE subscribers_id_seq FROM anon;
+REVOKE INSERT ON subscribers FROM anon, public;
+REVOKE USAGE, SELECT ON SEQUENCE subscribers_id_seq FROM anon, public;
 
 -- Esempio di approvazione manuale (SQL Editor Supabase, una richiesta alla volta):
 --   UPDATE subscription_requests SET status = 'approved', reviewed_at = now() WHERE id = <ID>;
