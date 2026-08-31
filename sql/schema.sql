@@ -164,3 +164,21 @@ REVOKE USAGE, SELECT ON SEQUENCE subscribers_id_seq FROM anon, public;
 --   UPDATE subscription_requests SET status = 'rejected', reviewed_at = now(), notes = '<motivo>' WHERE id = <ID>;
 
 
+-- Restrizione permessi da public ad anon e ripristino policy minima verificata
+DROP POLICY IF EXISTS subscription_requests_public_submit ON subscription_requests;
+CREATE POLICY subscription_requests_public_submit
+    ON subscription_requests
+    FOR INSERT
+    TO anon
+    WITH CHECK (
+        status = 'pending'
+        AND reviewed_at IS NULL
+    );
+
+REVOKE INSERT ON subscription_requests FROM public;
+REVOKE USAGE, SELECT ON SEQUENCE subscription_requests_id_seq FROM public;
+GRANT INSERT ON subscription_requests TO anon;
+GRANT USAGE, SELECT ON SEQUENCE subscription_requests_id_seq TO anon;
+
+
+

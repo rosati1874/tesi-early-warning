@@ -89,7 +89,9 @@ La verifica end-to-end sul database Supabase di produzione è stata completata c
    - **Risultato**: **`HTTP 401 Unauthorized`** (`permission denied for table subscribers`).
    - **Conferma**: Il vecchio endpoint di auto-iscrizione diretta è sbarrato con successo.
 
-### Chiarimento sul Falso Indizio dell'Header `Authorization`
+### Chiarimento sul Falso Indizio dell'Header `Authorization` e Restrizione Permessi
 L'errore `HTTP 401 / 42501` riscontrato nelle fasi intermedie di test quando si usava `Prefer: return=representation` era causato dal fatto che PostgREST, per restituire la rappresentazione del record inserito, tenta di eseguire una `SELECT` automatica sulla riga appena creata. Poiché la tabella `subscription_requests` non ha (giustamente) una policy di lettura pubblica (`SELECT`), l'operazione veniva bloccata con violazione di RLS.
 
 L'uso dell'header `Authorization: Bearer` era stato una variazione coincidente e non rappresentava un requisito reale di autenticazione. Per le applicazioni terze, il flusso documentato nel `README.md` (con il solo header `apikey`, `Prefer: return=minimal` e nessun header `Authorization`) è quello corretto, valido ed operante.
+
+I permessi di inserimento sulla tabella `subscription_requests` e la policy RLS `subscription_requests_public_submit` sono stati ristretti rigorosamente al ruolo `anon` (con `GRANT INSERT ... TO anon`), revocando ogni privilegio precedentemente concesso al ruolo `public` e ripristinando la condizione minima verificata `status = 'pending' AND reviewed_at IS NULL`.
