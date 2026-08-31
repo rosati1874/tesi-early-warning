@@ -113,3 +113,51 @@ WITH CHECK (active = true AND failure_count = 0 AND last_notified_at IS NULL);
 GRANT INSERT ON subscribers TO anon;
 GRANT USAGE, SELECT ON SEQUENCE subscribers_id_seq TO anon;
 
+
+-- ============================================================
+-- Migrazione v2: iscrizione soggetta a verifica (sostituisce
+-- l'auto-iscrizione diretta introdotta in precedenza)
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS subscription_requests (
+    id                SERIAL PRIMARY KEY,
+    webhook_url       TEXT NOT NULL,
+    organization_name TEXT,
+    contact_email     TEXT,
+    requested_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    status            TEXT NOT NULL DEFAULT 'pending',  -- 'pending' | 'approved' | 'rejected'
+    reviewed_at       TIMESTAMPTZ,
+    notes             TEXT
+);
+
+ALTER TABLE subscription_requests ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE subscription_requests
+    ADD CONSTRAINT subscription_requests_webhook_url_https CHECK (webhook_url ~ '^https://');
+
+ALTER TABLE subscription_requests
+    ADD CONSTRAINT subscription_requests_status_valid CHECK (status IN ('pending', 'approved', 'rejected'));
+
+CREATE POLICY subscription_requests_public_submit
+    ON subscription_requests
+    FOR INSERT
+    TO anon
+    WITH CHECK (
+        status = 'pending'
+        AND reviewed_at IS NULL
+    );
+
+GRANT INSERT ON subscription_requests TO anon;
+GRANT USAGE, SELECT ON SEQUENCE subscription_requests_id_seq TO anon;
+
+DROP POLICY IF EXISTS subscribers_public_self_register ON subscribers;
+REVOKE INSERT ON subscribers FROM anon;
+REVOKE USAGE, SELECT ON SEQUENCE subscribers_id_seq FROM anon;
+
+-- Esempio di approvazione manuale (SQL Editor Supabase, una richiesta alla volta):
+--   UPDATE subscription_requests SET status = 'approved', reviewed_at = now() WHERE id = <ID>;
+--   INSERT INTO subscribers (webhook_url) SELECT webhook_url FROM subscription_requests WHERE id = <ID>;
+-- Esempio di rifiuto:
+--   UPDATE subscription_requests SET status = 'rejected', reviewed_at = now(), notes = '<motivo>' WHERE id = <ID>;
+
+

@@ -59,23 +59,41 @@ python -m src.pipeline.run_acquisition
 python -m src.pipeline.run_monitoring
 ```
 
-### 5. Iscrizione al canale di notifica (per applicazioni terze) (RF-07)
-Le applicazioni terze possono registrare il proprio endpoint webhook per ricevere notifiche HTTP POST in tempo reale sui nuovi segnali epidemici rilevati, senza richiedere modifiche lato server. La registrazione sfrutta direttamente l'API REST automatica di Supabase (PostgREST) protetta via Row-Level Security (RLS).
+### 5. Richiesta di iscrizione al canale di notifica (per applicazioni terze) (RF-07)
+Le applicazioni terze interessate a ricevere notifiche HTTP POST in tempo reale sui nuovi segnali epidemici rilevati possono sottomettere una richiesta di iscrizione a due fasi. La richiesta viene inviata direttamente all'API REST di Supabase (`subscription_requests`) protetta da Row-Level Security (RLS) e viene presa in carico da un operatore per la verifica preliminare prima dell'attivazione effettiva del webhook.
 
-Esempio di richiesta di auto-iscrizione via `curl`:
+**Flusso a due fasi:**
+1. **Invio della richiesta (Pubblico)**: Chiunque può sottomettere una richiesta in stato `pending` specificando l'URL webhook (`https`, obbligatorio) ed eventualmente il nome dell'organizzazione e l'email di contatto.
+2. **Approvazione dell'operatore (Riservato)**: L'operatore consulta le richieste in attesa dalla Dashboard Supabase o via SQL. Solo a seguito dell'approvazione manuale l'URL viene inserito nella tabella `subscribers` ed inizia a ricevere notifiche.
+
+Esempio di invio richiesta di iscrizione via `curl`:
 ```bash
-curl -X POST "https://<PROJECT_REF>.supabase.co/rest/v1/subscribers" \
+curl -X POST "https://<PROJECT_REF>.supabase.co/rest/v1/subscription_requests" \
   -H "apikey: <PUBLISHABLE_API_KEY>" \
   -H "Authorization: Bearer <PUBLISHABLE_API_KEY>" \
   -H "Content-Type: application/json" \
-  -d '{"webhook_url": "https://example.com/webhook"}'
+  -d '{
+    "webhook_url": "https://example.com/webhook",
+    "organization_name": "Istituto di Ricerca Salute",
+    "contact_email": "referente@example.com"
+  }'
 ```
 
 **Dove reperire i parametri nella Dashboard Supabase:**
 - `<PROJECT_REF>`: **Integration → Data API** (es. `xyz123abc`).
-- `<PUBLISHABLE_API_KEY>`: **Settings → API Keys**, scheda **"Publishable and secret API keys"**, formato `sb_publishable_...` (o la chiave `anon` classica).
+- `<PUBLISHABLE_API_KEY>`: **Settings → API Keys**, scheda **"Publishable and secret API keys"**, formato `sb_publishable_...` (o la chiave `anon` classica). La chiave è pubblica per design per consentire la sottomissione delle richieste senza esporre credenziali amministrative.
 
-*Nota sulla sicurezza:* Le policy RLS su Supabase garantiscono che il ruolo pubblico `anon` possa solo effettuare `INSERT` con stato iniziale valido (`active = true`, `failure_count = 0`, `last_notified_at IS NULL`) e richiedono l'uso esclusivo del protocollo HTTPS. Le operazioni di lettura (`SELECT`), modifica (`UPDATE`) o cancellazione (`DELETE`) restano inaccessibili al pubblico.
+*Esempi di gestione per l'operatore (SQL Editor Supabase):*
+```sql
+-- Approvazione richiesta:
+UPDATE subscription_requests SET status = 'approved', reviewed_at = now() WHERE id = <ID>;
+INSERT INTO subscribers (webhook_url) SELECT webhook_url FROM subscription_requests WHERE id = <ID>;
+
+-- Rifiuto richiesta:
+UPDATE subscription_requests SET status = 'rejected', reviewed_at = now(), notes = 'Motivazione' WHERE id = <ID>;
+```
+
+*Nota sulla sicurezza:* Le policy RLS su Supabase garantiscono che il ruolo pubblico `anon` possa solo inserire record in stato `pending` con `reviewed_at IS NULL` sulla tabella `subscription_requests`, imponendo l'uso del protocollo HTTPS. L'inserimento diretto sulla tabella `subscribers`, la lettura (`SELECT`), la modifica (`UPDATE`) e la cancellazione (`DELETE`) restano inaccessibili al pubblico.
 
 ## Note importanti
 
