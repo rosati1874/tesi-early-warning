@@ -132,12 +132,15 @@ CREATE TABLE IF NOT EXISTS subscription_requests (
 
 ALTER TABLE subscription_requests ENABLE ROW LEVEL SECURITY;
 
+ALTER TABLE subscription_requests DROP CONSTRAINT IF EXISTS subscription_requests_webhook_url_https;
 ALTER TABLE subscription_requests
     ADD CONSTRAINT subscription_requests_webhook_url_https CHECK (webhook_url ~ '^https://');
 
+ALTER TABLE subscription_requests DROP CONSTRAINT IF EXISTS subscription_requests_status_valid;
 ALTER TABLE subscription_requests
     ADD CONSTRAINT subscription_requests_status_valid CHECK (status IN ('pending', 'approved', 'rejected'));
 
+DROP POLICY IF EXISTS subscription_requests_public_submit ON subscription_requests;
 CREATE POLICY subscription_requests_public_submit
     ON subscription_requests
     FOR INSERT
