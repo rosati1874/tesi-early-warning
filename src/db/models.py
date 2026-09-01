@@ -35,7 +35,7 @@ class Article(Base):
     llm_model = Column(Text)
     classification_attempts = Column(Integer, default=0, nullable=False)
 
-    status = Column(Text, default="active")  # 'active' | 'removed' | 'error' | 'duplicate'
+    status = Column(Text, default="active")  # 'active' | 'removed' | 'error'
     last_checked_at = Column(TIMESTAMP(timezone=True))
 
     versions = relationship("ArticleVersion", back_populates="article")
