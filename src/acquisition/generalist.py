@@ -7,6 +7,7 @@ Google News RSS è un canale gratuito, senza chiave API, pensato per query
 testuali e filtrabile per lingua/regione, ed è quindi la scelta principale
 per l'acquisizione generalista in questo scaffold.
 """
+import time
 from datetime import datetime, timezone
 import re
 from urllib.parse import quote_plus, urlparse
@@ -62,7 +63,8 @@ def _resolve_article_url(raw_url: str | None) -> str | None:
 
     Strategia multistadio:
     1. Tenta la decodifica offline con googlenewsdecoder (new_decoderv1).
-    2. Se fallisce o restituisce ancora un URL Google News, tenta l'inseguimento dei redirect HTTP.
+    2. Se fallisce o restituisce ancora un URL Google News, tenta l'inseguimento dei redirect HTTP
+       con retry e backoff in caso di errori transitori di rete.
     3. Come riserva finale, logga un avviso [ATTENZIONE] e restituisce l'URL originale invariato.
     """
     if not raw_url:
@@ -83,41 +85,67 @@ def _resolve_article_url(raw_url: str | None) -> str | None:
         if decoded_url and "news.google.com" not in decoded_url:
             return decoded_url
 
-        # Livello 2: Fallback tramite inseguimento dei redirect HTTP
-        try:
-            resp = requests.get(
-                raw_url,
-                allow_redirects=True,
-                timeout=REQUEST_TIMEOUT_SECONDS,
-                headers={"User-Agent": HTTP_USER_AGENT},
-            )
-            if resp.status_code == 200 and resp.url and "news.google.com" not in resp.url:
-                print(f"[INFO] [generalist] URL Google News decodificato tramite fallback HTTP redirect: {resp.url}")
-                return resp.url
-        except Exception as exc:
-            print(f"[ATTENZIONE] [generalist] Impossibile decodificare URL Google News '{raw_url}' anche via HTTP redirect: {exc}")
-            return raw_url
+        # Livello 2: Fallback tramite inseguimento dei redirect HTTP (con retry e backoff)
+        max_retries = 2
+        for attempt in range(1, max_retries + 1):
+            try:
+                resp = requests.get(
+                    raw_url,
+                    allow_redirects=True,
+                    timeout=REQUEST_TIMEOUT_SECONDS,
+                    headers={"User-Agent": HTTP_USER_AGENT},
+                )
+                if resp.status_code == 200 and resp.url and "news.google.com" not in resp.url:
+                    print(f"[INFO] [generalist] URL Google News decodificato tramite fallback HTTP redirect: {resp.url}")
+                    return resp.url
+                break
+            except requests.exceptions.RequestException as exc:
+                if attempt < max_retries:
+                    print(f"[ATTENZIONE] [generalist] Tentativo {attempt}/{max_retries} per HTTP redirect su '{raw_url}' fallito ({exc}). Retry in 1s...")
+                    time.sleep(1)
+                else:
+                    print(f"[ATTENZIONE] [generalist] Impossibile decodificare URL Google News '{raw_url}' via HTTP redirect dopo {max_retries} tentativi: {exc}")
+                    return raw_url
 
         print(f"[ATTENZIONE] [generalist] Impossibile decodificare URL Google News '{raw_url}': sia decoder sia HTTP redirect hanno restituito link Google News")
 
     return raw_url
 
 
-def _extract_source_name(entry: dict, resolved_url: str | None = None) -> str:
+def _extract_source_name(
+    entry: dict,
+    resolved_url: str | None = None,
+    targeted_sources_map: dict[str, str] | None = None
+) -> str:
     """Estrae il nome reale della testata dall'elemento RSS di Google News o dall'URL decodificato.
 
-    1. Tenta il tag dedicato <source> di Google News (feedparser lo decodifica in entry.source).
-    2. Come riserva, estrae il dominio dall'URL reale decodificato (es. "repubblica.it", "linkiesta.it").
-    3. Se entrambi falliscono, restituisce "google_news".
+    Gerarchia di fallback:
+    1. Tag dedicato <source> di Google News RSS (es. entry.source.title = "La Repubblica").
+    2. Cross-referenziazione con il canale mirato (tramite URL decodificato o titolo identico).
+    3. Dominio dell'URL reale decodificato (es. "repubblica.it", "linkiesta.it").
+    4. Parsing del titolo dell'item RSS (formato "Titolo articolo - Nome testata").
+    5. Riserva generica finale "google_news".
     """
     # 1. Tentativo da tag <source> di Google News RSS
-    source_obj = entry.get("source")
+    source_obj = entry.get("source") if isinstance(entry, dict) else getattr(entry, "source", None)
     if isinstance(source_obj, dict) and source_obj.get("title"):
-        return source_obj["title"].strip()
+        s_name = source_obj["title"].strip()
+        if s_name:
+            return s_name
     elif hasattr(source_obj, "title") and getattr(source_obj, "title"):
-        return getattr(source_obj, "title").strip()
+        s_name = getattr(source_obj, "title").strip()
+        if s_name:
+            return s_name
 
-    # 2. Riserva da dominio dell'URL decodificato
+    # 2. Cross-referenziazione con il canale mirato (se fornita mappa URL/Titolo -> Fonte)
+    if targeted_sources_map:
+        if resolved_url and resolved_url in targeted_sources_map:
+            return targeted_sources_map[resolved_url]
+        raw_title = entry.get("title") if isinstance(entry, dict) else getattr(entry, "title", None)
+        if raw_title and isinstance(raw_title, str) and raw_title.strip().lower() in targeted_sources_map:
+            return targeted_sources_map[raw_title.strip().lower()]
+
+    # 3. Riserva da dominio dell'URL decodificato
     if resolved_url:
         try:
             domain = urlparse(resolved_url).netloc.lower()
@@ -128,11 +156,24 @@ def _extract_source_name(entry: dict, resolved_url: str | None = None) -> str:
         except Exception as exc:
             print(f"[ATTENZIONE] [generalist] Impossibile estrarre il dominio dall'URL '{resolved_url}': {exc}")
 
-    # 3. Riserva generica
+    # 4. Parsing del titolo dell'item RSS (formato "Titolo articolo - Nome testata")
+    title = entry.get("title") if isinstance(entry, dict) else getattr(entry, "title", None)
+    if title and isinstance(title, str):
+        parts = re.split(r"\s+[\-\–\—]\s+", title)
+        if len(parts) > 1:
+            candidate = parts[-1].strip()
+            # Validazione: lunghezza compresa tra 2 e 60 car, non coincide col titolo intero, non solo cifre
+            if candidate and 2 <= len(candidate) <= 60 and candidate.lower() != title.lower() and not candidate.isdigit():
+                return candidate
+
+    # 5. Riserva generica finale
     return "google_news"
 
 
-def fetch_generalist_articles(queries: list[str] | None = None) -> list[dict]:
+def fetch_generalist_articles(
+    queries: list[str] | None = None,
+    targeted_sources_map: dict[str, str] | None = None
+) -> list[dict]:
     """Interroga Google News RSS per ciascuna query e restituisce articoli grezzi con URL decodificati."""
     queries = queries or GENERALIST_QUERIES
     articles = []
@@ -152,7 +193,7 @@ def fetch_generalist_articles(queries: list[str] | None = None) -> list[dict]:
 
             raw_link = entry.get("link")
             resolved_url = _resolve_article_url(raw_link)
-            source_name = _extract_source_name(entry, resolved_url)
+            source_name = _extract_source_name(entry, resolved_url, targeted_sources_map)
 
             articles.append({
                 "url": resolved_url,
@@ -169,3 +210,4 @@ def fetch_generalist_articles(queries: list[str] | None = None) -> list[dict]:
         print(f"[INFO] [generalist] Acquisizione generalista completata: {len(articles)} articoli estratti")
 
     return articles
+

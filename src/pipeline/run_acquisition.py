@@ -41,7 +41,16 @@ def run() -> None:
     # FASE 1: ACQUISIZIONE ARTICOLI GREZZI (FEED MIRATI + QUERY GENERALISTE)
     # -------------------------------------------------------------------------
     targeted = fetch_targeted_articles()
-    generalist = fetch_generalist_articles()
+
+    # Mappa di cross-referenziazione per associare le fonti del canale mirato ai generalisti
+    targeted_sources_map = {}
+    for art in targeted:
+        if art.get("url") and art.get("source"):
+            targeted_sources_map[art["url"]] = art["source"]
+        if art.get("title") and art.get("source"):
+            targeted_sources_map[art["title"].strip().lower()] = art["source"]
+
+    generalist = fetch_generalist_articles(targeted_sources_map=targeted_sources_map)
     raw_articles = targeted + generalist
     print(f"[INFO] [pipeline] Acquisizione completata: {len(raw_articles)} articoli grezzi trovati ({len(targeted)} mirati, {len(generalist)} generalisti)")
 
