@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS blacklisted_models (
 
 CREATE TABLE IF NOT EXISTS subscribers (
     id               SERIAL PRIMARY KEY,
-    webhook_url      TEXT UNIQUE NOT NULL,
+    webhook_url      TEXT UNIQUE NOT NULL CHECK (webhook_url ~ '^https://'),
     created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
     active           BOOLEAN NOT NULL DEFAULT true,
     last_notified_at TIMESTAMPTZ,
@@ -89,8 +89,6 @@ ALTER TABLE subscribers ENABLE ROW LEVEL SECURITY;
 -- riferimento storico, non necessarie su un database nuovo)
 -- ============================================================
 
-ALTER TABLE articles ADD COLUMN IF NOT EXISTS classification_attempts INTEGER NOT NULL DEFAULT 0;
-
 UPDATE articles
 SET source = regexp_replace(split_part(split_part(url, '//', 2), '/', 1), '^www\.', '')
 WHERE source = 'google_news'
@@ -98,74 +96,23 @@ WHERE source = 'google_news'
 
 
 -- ============================================================
--- Auto-iscrizione pubblica al canale di notifica (RF-07)
--- ============================================================
-
--- Vincolo CHECK: accetta solo URL con protocollo HTTPS
-ALTER TABLE subscribers ADD CONSTRAINT subscribers_webhook_url_https CHECK (webhook_url ~ '^https://');
-
--- Policy RLS: permette l'inserimento pubblico (anon) solo con stato iniziale corretto
-CREATE POLICY subscribers_public_self_register ON subscribers
-FOR INSERT TO anon
-WITH CHECK (active = true AND failure_count = 0 AND last_notified_at IS NULL);
-
--- Privilegi minimi espliciti per il ruolo pubblico anon
-GRANT INSERT ON subscribers TO anon;
-GRANT USAGE, SELECT ON SEQUENCE subscribers_id_seq TO anon;
-
-
--- ============================================================
--- Migrazione v2: iscrizione soggetta a verifica (sostituisce
--- l'auto-iscrizione diretta introdotta in precedenza)
+-- Sistema di Iscrizione Soggetta a Verifica (RF-07)
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS subscription_requests (
     id                SERIAL PRIMARY KEY,
-    webhook_url       TEXT NOT NULL,
+    webhook_url       TEXT NOT NULL CHECK (webhook_url ~ '^https://'),
     organization_name TEXT,
     contact_email     TEXT,
     requested_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-    status            TEXT NOT NULL DEFAULT 'pending',  -- 'pending' | 'approved' | 'rejected'
+    status            TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
     reviewed_at       TIMESTAMPTZ,
     notes             TEXT
 );
 
 ALTER TABLE subscription_requests ENABLE ROW LEVEL SECURITY;
 
-ALTER TABLE subscription_requests DROP CONSTRAINT IF EXISTS subscription_requests_webhook_url_https;
-ALTER TABLE subscription_requests
-    ADD CONSTRAINT subscription_requests_webhook_url_https CHECK (webhook_url ~ '^https://');
-
-ALTER TABLE subscription_requests DROP CONSTRAINT IF EXISTS subscription_requests_status_valid;
-ALTER TABLE subscription_requests
-    ADD CONSTRAINT subscription_requests_status_valid CHECK (status IN ('pending', 'approved', 'rejected'));
-
-DROP POLICY IF EXISTS subscription_requests_public_submit ON subscription_requests;
-CREATE POLICY subscription_requests_public_submit
-    ON subscription_requests
-    FOR INSERT
-    TO public
-    WITH CHECK (
-        (status IS NULL OR status = 'pending')
-        AND reviewed_at IS NULL
-    );
-
-GRANT INSERT ON subscription_requests TO public;
-GRANT USAGE, SELECT ON SEQUENCE subscription_requests_id_seq TO public;
-
-DROP POLICY IF EXISTS subscribers_public_self_register ON subscribers;
-REVOKE INSERT ON subscribers FROM anon, public;
-REVOKE USAGE, SELECT ON SEQUENCE subscribers_id_seq FROM anon, public;
-
--- Esempio di approvazione manuale (SQL Editor Supabase, una richiesta alla volta):
---   UPDATE subscription_requests SET status = 'approved', reviewed_at = now() WHERE id = <ID>;
---   INSERT INTO subscribers (webhook_url) SELECT webhook_url FROM subscription_requests WHERE id = <ID>;
--- Esempio di rifiuto:
---   UPDATE subscription_requests SET status = 'rejected', reviewed_at = now(), notes = '<motivo>' WHERE id = <ID>;
-
-
--- Restrizione permessi da public ad anon e ripristino policy minima verificata
-DROP POLICY IF EXISTS subscription_requests_public_submit ON subscription_requests;
+-- Policy RLS: permette l'inserimento pubblico (anon) solo con stato 'pending'
 CREATE POLICY subscription_requests_public_submit
     ON subscription_requests
     FOR INSERT
@@ -175,10 +122,11 @@ CREATE POLICY subscription_requests_public_submit
         AND reviewed_at IS NULL
     );
 
-REVOKE INSERT ON subscription_requests FROM public;
-REVOKE USAGE, SELECT ON SEQUENCE subscription_requests_id_seq FROM public;
 GRANT INSERT ON subscription_requests TO anon;
 GRANT USAGE, SELECT ON SEQUENCE subscription_requests_id_seq TO anon;
 
-
-
+-- Esempio di approvazione manuale (SQL Editor Supabase, una richiesta alla volta):
+--   UPDATE subscription_requests SET status = 'approved', reviewed_at = now() WHERE id = <ID>;
+--   INSERT INTO subscribers (webhook_url) SELECT webhook_url FROM subscription_requests WHERE id = <ID>;
+-- Esempio di rifiuto:
+--   UPDATE subscription_requests SET status = 'rejected', reviewed_at = now(), notes = '<motivo>' WHERE id = <ID>;

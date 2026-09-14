@@ -1,7 +1,7 @@
-# Sistema di early warning epidemico — scaffold iniziale
+# Sistema di early warning epidemico
 
-Scaffold per la tesi magistrale "Sistema di early warning per il rilevamento
-di possibili focolai epidemici tramite monitoraggio del web".
+Sistema di early warning per il rilevamento di possibili focolai epidemici tramite monitoraggio del web.
+Il sistema è in produzione dal 28 luglio 2026, con acquisizione automatica ogni 6 ore. Caso di studio e validazione esterna completi.
 
 ## Architettura in breve
 

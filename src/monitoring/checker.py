@@ -88,4 +88,4 @@ def run_monitoring_cycle(session) -> None:
     print(f"[INFO] [monitoring] Avvio ciclo di monitoraggio: {len(relevant_articles)} articoli da controllare")
     for article in relevant_articles:
         check_article(session, article)
-    print(f"[INFO] [monitoring] Ciclo di monitoraggio completato con successo")
+    print("[INFO] [monitoring] Ciclo di monitoraggio completato con successo")
