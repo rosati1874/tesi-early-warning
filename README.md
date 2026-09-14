@@ -49,16 +49,6 @@ mantenere acceso.
 1. Vai su https://aistudio.google.com/apikey e genera una API key gratuita.
 2. Copiala come `GEMINI_API_KEY`.
 
-### 4. Sviluppo locale (facoltativo, utile in Antigravity)
-```bash
-python -m venv .venv
-source .venv/bin/activate  # su Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-cp .env.example .env   # poi compila .env con le tue credenziali
-python -m src.pipeline.run_acquisition
-python -m src.pipeline.run_monitoring
-```
-
 ### 5. Richiesta di iscrizione al canale di notifica (per applicazioni terze) (RF-07)
 Le applicazioni terze interessate a ricevere notifiche HTTP POST in tempo reale sui nuovi segnali epidemici rilevati possono sottomettere una richiesta di iscrizione a due fasi. La richiesta viene inviata direttamente all'API REST di Supabase (`subscription_requests`) protetta da Row-Level Security (RLS) e viene presa in carico da un operatore per la verifica preliminare prima dell'attivazione effettiva del webhook.
 
