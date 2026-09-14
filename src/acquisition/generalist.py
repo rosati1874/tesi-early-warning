@@ -49,7 +49,7 @@ def _parse_generalist_feed(feed_url: str):
             fixed_xml = _BARE_AMPERSAND.sub("&amp;", text_xml)
             parsed_sanitized = feedparser.parse(fixed_xml.encode("utf-8"))
             if parsed_sanitized.entries:
-                print(f"[INFO] [generalist] Feed Google News per query letto dopo riparazione XML automatica")
+                print("[INFO] [generalist] Feed Google News per query letto dopo riparazione XML automatica")
                 return parsed_sanitized
             return parsed_sanitized
     except Exception as exc:

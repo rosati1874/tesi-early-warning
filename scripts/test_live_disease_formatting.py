@@ -1,5 +1,5 @@
 """Script per testare live la risposta del modello Gemini sulla standardizzazione del campo disease."""
-import os
+
 import sys
 
 sys.path.append(".")
@@ -42,7 +42,7 @@ def run_live_test():
         print(f"\n[TEST ARTICOLO #{art['id']}] Formato nel testo originale: {art['raw_disease_in_text']}")
         print(f"  Titolo: '{art['title']}'")
         res = classify(art["title"], art["text"])
-        print(f"  --> Risposta LLM Gemini:")
+        print("  --> Risposta LLM Gemini:")
         print(f"      - is_epidemic_signal : {res.get('is_epidemic_signal')}")
         print(f"      - disease estratto    : '{res.get('disease')}'")
         print(f"      - location estratta   : '{res.get('location')}'")

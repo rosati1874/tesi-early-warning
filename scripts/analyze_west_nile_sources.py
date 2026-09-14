@@ -11,7 +11,7 @@ sys.path.append(".")
 from src.db.connection import get_session
 from src.db.models import Article
 from src.acquisition.generalist import _extract_source_name
-from src.filtering.source_normalizer import normalize_source_name, CANONICAL_SOURCE_MAP
+from src.filtering.source_normalizer import normalize_source_name
 
 
 def analyze_west_nile_sample():
