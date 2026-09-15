@@ -94,4 +94,4 @@ UPDATE subscription_requests SET status = 'rejected', reviewed_at = now(), notes
 ## Note sull'implementazione
 
 - Per l'acquisizione generalista, ho scelto di usare **Google News RSS** perché non richiede una chiave API, risultando molto più stabile e affidabile rispetto a librerie di scraping o alle API ufficiali di Google Search (che diventano a pagamento superata la soglia gratuita).
-- Per quanto riguarda il rispetto dei siti monitorati, non ho inserito pause artificiali (throttling) nel codice per rallentare il download. Dato che la pipeline gira solo ogni 6 ore e scarica pochissimi articoli alla volta (solo le notizie nuove), il carico sui server delle testate è minimo e non c'è rischio di violare i loro rate limit.
+- Per quanto riguarda il rispetto dei siti monitorati, non ho inserito pause artificiali nel codice per rallentare il download. Dato che la pipeline gira solo ogni 6 ore e scarica pochissimi articoli alla volta (solo le notizie nuove), il carico sui server delle testate è minimo e non c'è rischio di sovraccaricarli o di venire bloccati.
