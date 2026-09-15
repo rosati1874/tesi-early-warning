@@ -1,9 +1,8 @@
 """Classificazione semantica tramite LLM (RF-05).
 
-Implementazione principale: Gemini API (free tier). Il modulo è pensato
-per essere sostituibile (RNF-05): un classificatore locale via Ollama
-potrà implementare la stessa interfaccia `classify(title, text) -> dict`
-per il confronto sperimentale del Cap. 6.
+Implementazione tramite Gemini API (free tier). Il modulo è progettato
+con un'interfaccia standard `classify(title, text) -> dict` per
+garantire la modularità (RNF-05).
 """
 import os
 import re
