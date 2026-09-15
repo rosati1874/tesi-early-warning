@@ -96,10 +96,7 @@ UPDATE subscription_requests SET status = 'rejected', reviewed_at = now(), notes
 
 ## Note importanti
 
-- **Feed RSS delle testate mirate**: gli URL in
-  `src/acquisition/targeted.py` sono placeholder plausibili — VANNO
-  verificati manualmente (spesso `<sito>/feed` o `<sito>/rss`) prima del
-  primo run reale.
+
 - **Google News RSS** non richiede chiave API: è il canale scelto per
   l'acquisizione generalista al posto di `googlesearch-python` (più
   fragile) o delle API ufficiali Google Search (a pagamento oltre la soglia

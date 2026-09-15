@@ -1,9 +1,4 @@
-"""Acquisizione mirata (RF-01): feed RSS delle testate monitorate.
-
-ATTENZIONE: gli URL dei feed sotto sono placeholder plausibili.
-Vanno verificati manualmente (spesso <sito>/feed o <sito>/rss) prima
-del primo run reale, ed eventualmente corretti.
-"""
+"""Acquisizione mirata (RF-01): feed RSS delle testate monitorate."""
 import re
 import urllib.request
 from datetime import datetime, timezone
