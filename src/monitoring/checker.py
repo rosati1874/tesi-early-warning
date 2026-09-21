@@ -92,9 +92,6 @@ def check_article(session, article: Article) -> None:
         notify_monitoring_update(session, article, "epidemic_signal_removed", http_status=http_status)
     elif has_updated and article.is_epidemic_signal:
         print(f"[INFO] [monitoring] Invio notifica webhook per aggiornamento articolo ID {article.id}")
-        # Ricarico new_version per assicurarmi che captured_at sia valorizzato dopo il commit
-        if new_version:
-            session.refresh(new_version)
         notify_monitoring_update(session, article, "epidemic_signal_updated", version=new_version)
 
 
