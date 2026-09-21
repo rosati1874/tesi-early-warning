@@ -56,10 +56,13 @@ python -m src.pipeline.run_acquisition
 python -m src.pipeline.run_monitoring
 ```
 
-### 5. Iscriversi alle notifiche webhook (RF-07)
-Il sistema prevede la possibilità, per applicazioni esterne, di registrarsi per ricevere una notifica HTTP POST in tempo reale ogni volta che viene rilevato un nuovo segnale epidemico. 
+### 5. Iscriversi alle notifiche webhook (RF-07, RF-06)
+Il sistema prevede la possibilità, per applicazioni esterne, di registrarsi per ricevere notifiche HTTP POST in tempo reale. Le notifiche vengono inviate in tre casi:
+- **Nuovo segnale (`epidemic_signal_detected`)**: appena viene rilevato un potenziale focolaio.
+- **Aggiornamento (`epidemic_signal_updated`)**: se il testo di un articolo monitorato cambia (rilevato durante i cicli di monitoraggio).
+- **Rimozione (`epidemic_signal_removed`)**: se l'articolo di un segnale epidemico viene rimosso (HTTP 404) dalla testata originale.
 
-Il processo avviene in due fasi:
+Il processo di iscrizione avviene in due fasi:
 1. **Invio della richiesta**: Chiunque può inviare una richiesta all'API di Supabase (tabella `subscription_requests`). La richiesta parte in stato `pending`. È obbligatorio fornire un URL webhook basato su `https`.
 2. **Approvazione manuale**: L'amministratore del sistema verifica le richieste in attesa dalla Dashboard di Supabase e le approva manualmente. Solo a quel punto l'URL viene inserito tra gli iscritti attivi (`subscribers`) e inizia a ricevere i dati.
 

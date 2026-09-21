@@ -12,6 +12,7 @@ import requests
 from src.config import HTTP_USER_AGENT, REQUEST_TIMEOUT_SECONDS
 from src.parsing.extractor import extract_article_text
 from src.db.models import Article, ArticleVersion, AvailabilityCheck
+from src.notifications.webhook import notify_monitoring_update
 
 
 def _hash_text(text: str) -> str:
@@ -22,7 +23,12 @@ def check_article(session, article: Article) -> None:
     """Esegue un controllo di disponibilità/contenuto su un singolo articolo
     e registra i risultati (availability_checks, eventuale nuova
     article_versions), aggiornando lo stato dell'articolo.
+    Se rileva una rimozione (404) o un aggiornamento, invia una notifica webhook.
     """
+    original_status = article.status
+    has_updated = False
+    new_version = None
+
     try:
         resp = requests.get(
             article.url,
@@ -63,16 +69,33 @@ def check_article(session, article: Article) -> None:
                 .order_by(ArticleVersion.captured_at.desc())
                 .first()
             )
-            if last_version is None or last_version.content_hash != new_hash:
-                session.add(ArticleVersion(
+            
+            # Se non c'è una versione salvata, hash di default è quello del testo originale
+            hash_to_compare = last_version.content_hash if last_version else _hash_text(article.raw_text or "")
+            
+            if hash_to_compare != new_hash:
+                new_version = ArticleVersion(
                     article_id=article.id,
                     content_hash=new_hash,
                     text_snapshot=current_text,
-                ))
+                )
+                session.add(new_version)
+                has_updated = True
                 print(f"[INFO] [monitoring] Rilevata nuova versione del contenuto per articolo ID {article.id}")
 
     article.last_checked_at = datetime.now(timezone.utc)
     session.commit()
+    
+    # Invia notifiche webhook (RF-06/RF-07) se ci sono stati cambiamenti di stato o contenuto
+    if original_status != "removed" and article.status == "removed" and article.is_epidemic_signal:
+        print(f"[INFO] [monitoring] Invio notifica webhook per rimozione articolo ID {article.id}")
+        notify_monitoring_update(session, article, "epidemic_signal_removed", http_status=http_status)
+    elif has_updated and article.is_epidemic_signal:
+        print(f"[INFO] [monitoring] Invio notifica webhook per aggiornamento articolo ID {article.id}")
+        # Ricarico new_version per assicurarmi che captured_at sia valorizzato dopo il commit
+        if new_version:
+            session.refresh(new_version)
+        notify_monitoring_update(session, article, "epidemic_signal_updated", version=new_version)
 
 
 def run_monitoring_cycle(session) -> None:
