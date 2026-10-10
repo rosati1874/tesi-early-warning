@@ -66,7 +66,6 @@ def _parse_feed(url: str):
         parsed_sanitized = feedparser.parse(sanitized)
         if parsed_sanitized.entries:
             print(f"[INFO] [targeted] Feed {url} letto dopo riparazione XML automatica")
-            return parsed_sanitized
         return parsed_sanitized
 
     return parsed
