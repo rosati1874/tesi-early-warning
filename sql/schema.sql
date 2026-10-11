@@ -49,11 +49,13 @@ CREATE TABLE IF NOT EXISTS blacklisted_models (
 
 CREATE TABLE IF NOT EXISTS subscribers (
     id               SERIAL PRIMARY KEY,
-    webhook_url      TEXT UNIQUE NOT NULL CHECK (webhook_url ~ '^https://'),
+    webhook_url      TEXT UNIQUE CHECK (webhook_url ~ '^https://'),
+    email            TEXT UNIQUE CHECK (email ~* '^[^@\s]+@[^@\s]+\.[^@\s]+$'),
     created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
     active           BOOLEAN NOT NULL DEFAULT true,
     last_notified_at TIMESTAMPTZ,
-    failure_count    INTEGER NOT NULL DEFAULT 0
+    failure_count    INTEGER NOT NULL DEFAULT 0,
+    CHECK (webhook_url IS NOT NULL OR email IS NOT NULL)
 );
 
 CREATE INDEX IF NOT EXISTS idx_articles_signal ON articles (is_epidemic_signal);
@@ -100,14 +102,16 @@ WHERE source = 'google_news'
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS subscription_requests (
-    id                SERIAL PRIMARY KEY,
-    webhook_url       TEXT NOT NULL CHECK (webhook_url ~ '^https://'),
-    organization_name TEXT,
-    contact_email     TEXT,
-    requested_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-    status            TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
-    reviewed_at       TIMESTAMPTZ,
-    notes             TEXT
+    id                 SERIAL PRIMARY KEY,
+    webhook_url        TEXT CHECK (webhook_url ~ '^https://'),
+    notification_email TEXT CHECK (notification_email ~* '^[^@\s]+@[^@\s]+\.[^@\s]+$'),
+    organization_name  TEXT,
+    contact_email      TEXT,
+    requested_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    status             TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+    reviewed_at        TIMESTAMPTZ,
+    notes              TEXT,
+    CHECK (webhook_url IS NOT NULL OR notification_email IS NOT NULL)
 );
 
 ALTER TABLE subscription_requests ENABLE ROW LEVEL SECURITY;
@@ -127,6 +131,7 @@ GRANT USAGE, SELECT ON SEQUENCE subscription_requests_id_seq TO anon;
 
 -- Esempio di approvazione manuale (SQL Editor Supabase, una richiesta alla volta):
 --   UPDATE subscription_requests SET status = 'approved', reviewed_at = now() WHERE id = <ID>;
---   INSERT INTO subscribers (webhook_url) SELECT webhook_url FROM subscription_requests WHERE id = <ID>;
+--   INSERT INTO subscribers (webhook_url, email)
+--   SELECT webhook_url, notification_email FROM subscription_requests WHERE id = <ID>;
 -- Esempio di rifiuto:
 --   UPDATE subscription_requests SET status = 'rejected', reviewed_at = now(), notes = '<motivo>' WHERE id = <ID>;

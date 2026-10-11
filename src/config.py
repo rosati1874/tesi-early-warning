@@ -25,6 +25,19 @@ ENABLE_WEBHOOK_NOTIFICATIONS = os.environ.get(
     "ENABLE_WEBHOOK_NOTIFICATIONS", "false"
 ).lower() == "true"
 
+# Interruttore per le notifiche email: quando è "false" (default),
+# la pipeline non effettua query per i destinatari email né apre connessioni SMTP.
+ENABLE_EMAIL_NOTIFICATIONS = os.environ.get(
+    "ENABLE_EMAIL_NOTIFICATIONS", "false"
+).lower() == "true"
+
+SMTP_HOST = os.environ.get("SMTP_HOST", "")
+SMTP_PORT = int(os.environ.get("SMTP_PORT") or "587")
+SMTP_USER = os.environ.get("SMTP_USER", "")
+SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
+EMAIL_SENDER = os.environ.get("EMAIL_SENDER") or SMTP_USER
+EMAIL_SENDER_NAME = os.environ.get("EMAIL_SENDER_NAME", "Early Warning Epidemico")
+
 # Numero massimo di articoli da inviare al modello LLM ad ogni esecuzione (default 60)
 MAX_LLM_CLASSIFICATIONS_PER_RUN = int(
     os.environ.get("MAX_LLM_CLASSIFICATIONS_PER_RUN", "60")

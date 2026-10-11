@@ -25,5 +25,12 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           ENABLE_LLM_CLASSIFICATION: ${{ vars.ENABLE_LLM_CLASSIFICATION }}
           ENABLE_WEBHOOK_NOTIFICATIONS: ${{ vars.ENABLE_WEBHOOK_NOTIFICATIONS }}
+          ENABLE_EMAIL_NOTIFICATIONS: ${{ vars.ENABLE_EMAIL_NOTIFICATIONS }}
+          SMTP_HOST: ${{ vars.SMTP_HOST }}
+          SMTP_PORT: ${{ vars.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          EMAIL_SENDER: ${{ vars.EMAIL_SENDER }}
+          EMAIL_SENDER_NAME: ${{ vars.EMAIL_SENDER_NAME }}
           PYTHONUNBUFFERED: "1"
         run: python -u -m src.pipeline.run_acquisition

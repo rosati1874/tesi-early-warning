@@ -80,11 +80,12 @@ class BlacklistedModel(Base):
 
 
 class Subscriber(Base):
-    """Rappresenta gli iscritti al servizio di notifica Webhook Pub-Sub per i nuovi segnali epidemici."""
+    """Rappresenta gli iscritti al servizio di notifica per i nuovi segnali epidemici (webhook ed email)."""
     __tablename__ = "subscribers"
 
     id = Column(Integer, primary_key=True)
-    webhook_url = Column(Text, unique=True, nullable=False)
+    webhook_url = Column(Text, unique=True, nullable=True)
+    email = Column(Text, unique=True, nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), default=datetime.utcnow, nullable=False)
     active = Column(Boolean, default=True, nullable=False)
     last_notified_at = Column(TIMESTAMP(timezone=True))

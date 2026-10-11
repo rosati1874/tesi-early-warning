@@ -23,7 +23,10 @@ def _send_webhook_events(session: Session, payloads: list[dict]) -> None:
     try:
         active_subscribers = (
             session.query(Subscriber)
-            .filter(Subscriber.active.is_(True))
+            .filter(
+                Subscriber.active.is_(True),
+                Subscriber.webhook_url.isnot(None),
+            )
             .all()
         )
     except Exception as exc:

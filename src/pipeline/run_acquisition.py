@@ -21,6 +21,7 @@ from src.filtering.prefilter import (
 from src.filtering.keywords import passes_keyword_filter
 from src.classification.llm_classifier import classify
 from src.notifications.webhook import notify_new_signals
+from src.notifications.email_notifier import notify_new_signals_by_email
 from src.config import (
     ENABLE_LLM_CLASSIFICATION,
     MAX_ARTICLE_AGE_DAYS,
@@ -176,13 +177,18 @@ def run() -> None:
             print(f"[INFO] [pipeline] Classificazione LLM completata: {classified_count}/{len(pending_articles)} articoli classificati")
 
     # -------------------------------------------------------------------------
-    # FASE 6: NOTIFICA WEBHOOK PUB-SUB PER I NUOVI SEGNALI EPIDEMICI IDENTIFICATI
+    # FASE 6: NOTIFICHE PER I NUOVI SEGNALI EPIDEMICI IDENTIFICATI (WEBHOOK ED EMAIL)
     # -------------------------------------------------------------------------
     if newly_classified_signals:
         try:
             notify_new_signals(session, newly_classified_signals)
         except Exception as exc:
             print(f"[ATTENZIONE] [pipeline] Errore imprevisto durante l'invio delle notifiche webhook: {exc}")
+
+        try:
+            notify_new_signals_by_email(session, newly_classified_signals)
+        except Exception as exc:
+            print(f"[ATTENZIONE] [pipeline] Errore imprevisto durante l'invio delle notifiche email: {exc}")
 
     print("[INFO] [pipeline] Pipeline di acquisizione completata con successo")
 
