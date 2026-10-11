@@ -1,17 +1,28 @@
 """Script di analisi e conteggio fonti sul campione West Nile (135 articoli).
 
+Modalità di esecuzione:
+    Da eseguire dalla radice del repository con il comando:
+    python docs/analisi/analyze_west_nile_sources.py
+
 Applica il parsing livello 4 del titolo agli articoli storici con source='google_news'
 ed effettua la normalizzazione tramite `normalize_source_name()`.
 """
-import sys
 from collections import Counter
+from pathlib import Path
+import sys
 from sqlalchemy import or_
 
-sys.path.append(".")
+_CURRENT_DIR = Path(__file__).resolve().parent
+_REPO_ROOT = _CURRENT_DIR.parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+if str(_CURRENT_DIR) not in sys.path:
+    sys.path.insert(0, str(_CURRENT_DIR))
+
 from src.db.connection import get_session
 from src.db.models import Article
 from src.acquisition.generalist import _extract_source_name
-from src.filtering.source_normalizer import normalize_source_name
+from docs.analisi.source_normalizer import normalize_source_name
 
 
 def analyze_west_nile_sample():

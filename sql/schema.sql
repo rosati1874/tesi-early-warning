@@ -87,17 +87,6 @@ ALTER TABLE subscribers ENABLE ROW LEVEL SECURITY;
 
 
 -- ============================================================
--- Migrazioni una tantum (già eseguite — mantenute solo come
--- riferimento storico, non necessarie su un database nuovo)
--- ============================================================
-
-UPDATE articles
-SET source = regexp_replace(split_part(split_part(url, '//', 2), '/', 1), '^www\.', '')
-WHERE source = 'google_news'
-  AND url NOT LIKE '%news.google.com%';
-
-
--- ============================================================
 -- Sistema di Iscrizione Soggetta a Verifica (RF-07)
 -- ============================================================
 
