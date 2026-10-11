@@ -24,11 +24,13 @@ CREATE TABLE IF NOT EXISTS articles (
 );
 
 CREATE TABLE IF NOT EXISTS article_versions (
-    id          SERIAL PRIMARY KEY,
-    article_id  INTEGER NOT NULL REFERENCES articles(id) ON DELETE CASCADE,
-    content_hash TEXT NOT NULL,
+    id            SERIAL PRIMARY KEY,
+    article_id    INTEGER NOT NULL REFERENCES articles(id) ON DELETE CASCADE,
+    content_hash  TEXT NOT NULL,
     text_snapshot TEXT,
-    captured_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    captured_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    is_baseline   BOOLEAN NOT NULL DEFAULT false,
+    hash_method   TEXT
 );
 
 CREATE TABLE IF NOT EXISTS availability_checks (

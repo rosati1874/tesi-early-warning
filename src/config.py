@@ -46,6 +46,9 @@ MAX_LLM_CLASSIFICATIONS_PER_RUN = int(
 # Filtro di freschezza: scarta gli articoli pubblicati da più di N giorni (default 30)
 MAX_ARTICLE_AGE_DAYS = int(os.environ.get("MAX_ARTICLE_AGE_DAYS", "30"))
 
+# Finestra temporale di monitoraggio: controlla solo i segnali degli ultimi N giorni (default 30)
+MONITORING_WINDOW_DAYS = int(os.environ.get("MONITORING_WINDOW_DAYS") or "30")
+
 BASE_DIR = Path(__file__).resolve().parent
 KEYWORDS_PATH = BASE_DIR / "filtering" / "keywords.yaml"
 

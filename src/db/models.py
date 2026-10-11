@@ -51,6 +51,8 @@ class ArticleVersion(Base):
     content_hash = Column(Text, nullable=False)
     text_snapshot = Column(Text)
     captured_at = Column(TIMESTAMP(timezone=True), default=datetime.utcnow)
+    is_baseline = Column(Boolean, default=False, nullable=False)
+    hash_method = Column(Text)
 
     article = relationship("Article", back_populates="versions")
 

@@ -280,3 +280,27 @@ def extract_article_text(url: str, html: str | None = None) -> str | None:
 
     print(f"[ATTENZIONE] [extractor] Impossibile estrarre testo dall'articolo (diretto e Jina falliti) per {url}")
     return None
+
+
+def extract_main_text_for_monitoring(html: str) -> str | None:
+    """Estrae il corpo principale dell'articolo per il monitoraggio periodico.
+
+    Utilizza esclusivamente trafilatura con alta precisione per isolare il testo
+    dell'articolo ed escludere elementi dinamici del layout (banner, ticker live,
+    ultime notizie). Se l'estrazione non produce testo o ha lunghezza inferiore
+    a 200 caratteri, restituisce None evitando ripieghi euristici.
+    """
+    if not html or not html.strip():
+        return None
+
+    # Estrazione mirata ad alta precisione
+    extracted = trafilatura.extract(html, favor_precision=True)
+    if not extracted:
+        return None
+
+    # Pulizia standard di righe social e metadati isolati
+    cleaned = clean_extracted_text(extracted)
+    if cleaned and len(cleaned.strip()) >= 200:
+        return cleaned.strip()
+
+    return None
