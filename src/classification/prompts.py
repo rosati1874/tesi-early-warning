@@ -5,8 +5,6 @@ distinguere un segnale epidemico reale da un uso figurato/non sanitario
 della terminologia, e produrre un output JSON strutturato.
 """
 
-PROMPT_VERSION = "v2"
-
 CLASSIFICATION_PROMPT_TEMPLATE = """Sei un analista di epidemic intelligence per un sistema di allerta precoce
 di sanità pubblica in Italia. Leggi l'articolo e stabilisci se contiene un
 SEGNALE EPIDEMICO, cioè la notizia di un evento sanitario in corso o recente

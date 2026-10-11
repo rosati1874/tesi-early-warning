@@ -2,15 +2,13 @@
 from unittest.mock import MagicMock
 import google.generativeai as genai
 
-from src.classification.prompts import build_classification_prompt, PROMPT_VERSION
+from src.classification.prompts import build_classification_prompt
 from src.classification import llm_classifier
 from src.classification.llm_classifier import classify
 
 
 def test_build_classification_prompt_struttura_e_troncamento():
     """Verifica che il prompt contenga titolo e testo, sia formattato con graffe singole e tronchi a 3000 caratteri."""
-    assert PROMPT_VERSION == "v2"
-
     title = "Focolaio di West Nile a Latina"
     long_text = "Corpo della notizia. " * 300  # oltre 3000 caratteri
     prompt = build_classification_prompt(title, long_text)
@@ -59,13 +57,12 @@ def test_classify_passa_generation_config_json(monkeypatch):
     assert gen_config.response_mime_type == "application/json"
     assert req_options == {"timeout": 15, "retry": None}
 
-    # Verifica risultato e versione prompt
+    # Verifica risultato
     assert res["is_epidemic_signal"] is True
     assert res["confidence"] == 0.95
     assert res["disease"] == "Dengue"
     assert res["location"] == "Latina, Lazio"
     assert res["llm_model"] == "gemini-2.5-flash"
-    assert res["prompt_version"] == "v2"
 
 
 def test_classify_fallback_quando_json_mode_non_supportata(monkeypatch):
@@ -108,19 +105,18 @@ def test_classify_fallback_quando_json_mode_non_supportata(monkeypatch):
     # Il modello NON deve essere finito in blacklist
     assert "gemma-2-9b-it" not in llm_classifier._blacklisted_models
 
-    # Risultato corretto con prompt_version "v2"
+    # Risultato corretto
     assert res["is_epidemic_signal"] is False
     assert res["confidence"] == 0.85
     assert res["llm_model"] == "gemma-2-9b-it"
-    assert res["prompt_version"] == "v2"
 
 
-def test_classify_errore_restituisce_prompt_version_none(monkeypatch):
-    """Verifica che in caso di errore di classificazione prompt_version sia None."""
+def test_classify_nessun_modello_disponibile_restituisce_segnale_none(monkeypatch):
+    """Verifica che in caso di nessun modello disponibile i campi del segnale siano None."""
     monkeypatch.setattr(llm_classifier, "_configured", True)
     monkeypatch.setattr(llm_classifier, "GEMINI_API_KEY", "dummy-api-key")
     monkeypatch.setattr(llm_classifier, "get_ranked_gemini_models", lambda: [])
 
     res = classify("Titolo", "Testo")
     assert res["is_epidemic_signal"] is None
-    assert res["prompt_version"] is None
+    assert res["llm_model"] is None

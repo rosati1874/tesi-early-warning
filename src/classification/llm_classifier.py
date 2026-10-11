@@ -10,7 +10,7 @@ import json
 import google.generativeai as genai
 
 from src.config import DATABASE_URL, GEMINI_API_KEY, GEMINI_MODEL
-from src.classification.prompts import build_classification_prompt, PROMPT_VERSION
+from src.classification.prompts import build_classification_prompt
 
 _configured = False
 _blacklisted_models: set[str] = set()
@@ -235,7 +235,7 @@ def _is_unavailability_error(exc: Exception) -> bool:
 
 def classify(title: str, text: str) -> dict:
     """Restituisce un dict con is_epidemic_signal, confidence, disease,
-    location, justification, prompt_version. In caso di modello non disponibile o quota esaurita (404 / 429),
+    location, justification. In caso di modello non disponibile o quota esaurita (404 / 429),
     inserisce il modello in blacklist (in memoria e DB) e ritenta immediatamente con il successivo candidato.
     Se un modello non supporta la modalità JSON (400), ritenta subito sullo stesso modello senza response_mime_type.
     """
@@ -251,7 +251,6 @@ def classify(title: str, text: str) -> dict:
             "location": None,
             "justification": msg,
             "llm_model": None,
-            "prompt_version": None,
         }
 
     prompt = build_classification_prompt(title, text)
@@ -294,7 +293,6 @@ def classify(title: str, text: str) -> dict:
                 "location": parsed.get("location"),
                 "justification": parsed.get("justification"),
                 "llm_model": model_name,
-                "prompt_version": PROMPT_VERSION,
             }
             print(f"[INFO] [llm_classifier] Articolo '{title}' classificato con {model_name} (segnale epidemico: {res['is_epidemic_signal']}, confidenza: {res['confidence']})")
             return res
@@ -313,7 +311,6 @@ def classify(title: str, text: str) -> dict:
                     "location": None,
                     "justification": f"errore di classificazione con {model_name}: {exc}",
                     "llm_model": model_name,
-                    "prompt_version": None,
                 }
 
     msg = f"tutti i modelli candidati ({candidates}) sono risultati non disponibili o in errore"
@@ -325,5 +322,4 @@ def classify(title: str, text: str) -> dict:
         "location": None,
         "justification": msg,
         "llm_model": None,
-        "prompt_version": None,
     }
