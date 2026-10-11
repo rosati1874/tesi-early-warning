@@ -33,6 +33,7 @@ class Article(Base):
     llm_location = Column(Text)
     llm_justification = Column(Text)
     llm_model = Column(Text)
+    llm_prompt_version = Column(String(20))
     classification_attempts = Column(Integer, default=0, nullable=False)
 
     status = Column(Text, default="active")  # 'active' | 'removed' | 'error'

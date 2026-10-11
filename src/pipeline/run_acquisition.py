@@ -165,6 +165,7 @@ def run() -> None:
                         art.llm_location = res.get("location")
                         art.llm_justification = res.get("justification")
                         art.llm_model = res.get("llm_model")
+                        art.llm_prompt_version = res.get("prompt_version")
                         session.commit()
                         classified_count += 1
 

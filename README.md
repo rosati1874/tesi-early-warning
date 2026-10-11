@@ -57,6 +57,7 @@ Se vuoi far girare il sistema sul tuo account, ecco i passaggi:
    - `sql/migrations/2026-10-11_email.sql`: estensione delle tabelle `subscribers` e `subscription_requests` per il supporto alle notifiche via email.
    - `sql/migrations/2026-10-11_monitoring_baseline.sql`: aggiunta dei campi `is_baseline` e `hash_method` alla tabella `article_versions` per la gestione delle versioni di riferimento nel monitoraggio.
    - `sql/migrations/2026-10-11_source_from_title.sql`: attribuzione retroattiva della testata dal titolo per gli articoli storici di Google News (già eseguita sul database di produzione, conservata esclusivamente come riferimento storico).
+   - `sql/migrations/2026-10-11_prompt_version.sql`: aggiunta del campo `llm_prompt_version` alla tabella `articles` per tracciare la versione del prompt impiegata nella classificazione semantica.
 4. Vai su **Project Settings > Database > Connection string** (seleziona "URI" e assicurati di usare la porta *pooled*, consigliata per GitHub Actions). Copia la stringa e usala come valore per il secret `DATABASE_URL`.
 
 ### 3. Chiave API di Gemini

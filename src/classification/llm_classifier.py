@@ -10,7 +10,7 @@ import json
 import google.generativeai as genai
 
 from src.config import DATABASE_URL, GEMINI_API_KEY, GEMINI_MODEL
-from src.classification.prompts import build_classification_prompt
+from src.classification.prompts import build_classification_prompt, PROMPT_VERSION
 
 _configured = False
 _blacklisted_models: set[str] = set()
@@ -202,8 +202,20 @@ def get_ranked_gemini_models() -> list[str]:
     return []
 
 
+def _is_unsupported_json_mode_error(exc: Exception) -> bool:
+    """Verifica se l'eccezione indica che la modalità JSON (response_mime_type) non è supportata dal modello."""
+    msg = str(exc).lower()
+    return (
+        "response_mime_type" in msg
+        or "mime_type" in msg
+        or ("json" in msg and ("not support" in msg or "unsupported" in msg or "invalid" in msg or "400" in msg))
+    )
+
+
 def _is_unavailability_error(exc: Exception) -> bool:
     """Verifica se l'eccezione indica che il modello è dismesso/non disponibile (404) o ha la quota esaurita (429/resource exhausted)."""
+    if _is_unsupported_json_mode_error(exc):
+        return False
     msg = str(exc).lower()
     phrases = [
         "no longer available",
@@ -223,8 +235,9 @@ def _is_unavailability_error(exc: Exception) -> bool:
 
 def classify(title: str, text: str) -> dict:
     """Restituisce un dict con is_epidemic_signal, confidence, disease,
-    location, justification. In caso di modello non disponibile o quota esaurita (404 / 429),
+    location, justification, prompt_version. In caso di modello non disponibile o quota esaurita (404 / 429),
     inserisce il modello in blacklist (in memoria e DB) e ritenta immediatamente con il successivo candidato.
+    Se un modello non supporta la modalità JSON (400), ritenta subito sullo stesso modello senza response_mime_type.
     """
     _ensure_configured()
     candidates = get_ranked_gemini_models()
@@ -238,6 +251,7 @@ def classify(title: str, text: str) -> dict:
             "location": None,
             "justification": msg,
             "llm_model": None,
+            "prompt_version": None,
         }
 
     prompt = build_classification_prompt(title, text)
@@ -246,7 +260,30 @@ def classify(title: str, text: str) -> dict:
         try:
             model = genai.GenerativeModel(model_name)
             request_options = {"timeout": 15, "retry": None}
-            response = model.generate_content(prompt, request_options=request_options)
+            generation_config = genai.GenerationConfig(
+                temperature=0, response_mime_type="application/json"
+            )
+
+            try:
+                response = model.generate_content(
+                    prompt,
+                    generation_config=generation_config,
+                    request_options=request_options,
+                )
+            except Exception as gen_exc:
+                if _is_unsupported_json_mode_error(gen_exc):
+                    print(
+                        f"[INFO] [llm_classifier] Modello '{model_name}' non supporta response_mime_type='application/json' ({gen_exc}). Nuovo tentativo con solo temperature=0..."
+                    )
+                    fallback_config = genai.GenerationConfig(temperature=0)
+                    response = model.generate_content(
+                        prompt,
+                        generation_config=fallback_config,
+                        request_options=request_options,
+                    )
+                else:
+                    raise gen_exc
+
             raw = response.text.strip()
             raw = raw.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
             parsed = json.loads(raw)
@@ -257,6 +294,7 @@ def classify(title: str, text: str) -> dict:
                 "location": parsed.get("location"),
                 "justification": parsed.get("justification"),
                 "llm_model": model_name,
+                "prompt_version": PROMPT_VERSION,
             }
             print(f"[INFO] [llm_classifier] Articolo '{title}' classificato con {model_name} (segnale epidemico: {res['is_epidemic_signal']}, confidenza: {res['confidence']})")
             return res
@@ -275,6 +313,7 @@ def classify(title: str, text: str) -> dict:
                     "location": None,
                     "justification": f"errore di classificazione con {model_name}: {exc}",
                     "llm_model": model_name,
+                    "prompt_version": None,
                 }
 
     msg = f"tutti i modelli candidati ({candidates}) sono risultati non disponibili o in errore"
@@ -286,4 +325,5 @@ def classify(title: str, text: str) -> dict:
         "location": None,
         "justification": msg,
         "llm_model": None,
+        "prompt_version": None,
     }
