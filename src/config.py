@@ -49,6 +49,16 @@ MAX_ARTICLE_AGE_DAYS = int(os.environ.get("MAX_ARTICLE_AGE_DAYS", "30"))
 # Finestra temporale di monitoraggio: controlla solo i segnali degli ultimi N giorni (default 30)
 MONITORING_WINDOW_DAYS = int(os.environ.get("MONITORING_WINDOW_DAYS") or "30")
 
+# Tolleranza in ore tra date di pubblicazione per la deduplicazione titolo+dominio (default 6)
+DEDUP_PUBLICATION_TOLERANCE_HOURS = int(
+    os.environ.get("DEDUP_PUBLICATION_TOLERANCE_HOURS") or "6"
+)
+
+# Finestra in ore su first_seen_at per la deduplicazione quando published_at manca (default 48)
+DEDUP_ACQUISITION_WINDOW_HOURS = int(
+    os.environ.get("DEDUP_ACQUISITION_WINDOW_HOURS") or "48"
+)
+
 BASE_DIR = Path(__file__).resolve().parent
 KEYWORDS_PATH = BASE_DIR / "filtering" / "keywords.yaml"
 
