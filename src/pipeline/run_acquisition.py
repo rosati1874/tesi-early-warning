@@ -18,12 +18,14 @@ from src.filtering.prefilter import (
     deduplicate_in_batch,
     is_duplicate_in_db,
 )
-from src.filtering.keywords import passes_keyword_filter
+from src.filtering.keywords import load_keywords, passes_keyword_filter
 from src.classification.llm_classifier import classify
 from src.notifications.webhook import notify_new_signals
 from src.notifications.email_notifier import notify_new_signals_by_email
+from src import config
 from src.config import (
     ENABLE_LLM_CLASSIFICATION,
+    GEMINI_API_KEY,
     MAX_ARTICLE_AGE_DAYS,
     MAX_LLM_CLASSIFICATIONS_PER_RUN,
 )
@@ -37,6 +39,21 @@ def run() -> None:
         msg = f"[ERRORE GRAVE] [pipeline] Impossibile inizializzare la sessione del database: {exc}"
         print(msg)
         raise RuntimeError(msg) from exc
+
+    # -------------------------------------------------------------------------
+    # VERIFICA PREVENTIVA DELLE DIPENDENZE E CONFIGURAZIONE
+    # -------------------------------------------------------------------------
+    load_keywords()
+
+    llm_enabled = getattr(config, "ENABLE_LLM_CLASSIFICATION", ENABLE_LLM_CLASSIFICATION)
+    max_llm = getattr(config, "MAX_LLM_CLASSIFICATIONS_PER_RUN", MAX_LLM_CLASSIFICATIONS_PER_RUN)
+    gemini_key = getattr(config, "GEMINI_API_KEY", GEMINI_API_KEY)
+
+    if llm_enabled and max_llm > 0:
+        if not gemini_key:
+            msg = "[ERRORE GRAVE] [pipeline] GEMINI_API_KEY non impostata: impossibile classificare gli articoli"
+            print(msg)
+            raise RuntimeError(msg)
 
     # -------------------------------------------------------------------------
     # FASE 1: ACQUISIZIONE ARTICOLI GREZZI (FEED MIRATI + QUERY GENERALISTE)
