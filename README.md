@@ -9,7 +9,7 @@ Il sistema è attualmente attivo e raccoglie dati ogni 6 ore.
 acquisizione (mirata: RSS testate + generalista: Google News RSS)
         |
         v
-   parsing / estrazione testo (trafilatura, con ripiego su BeautifulSoup e Jina AI Reader)
+   estrazione testo (trafilatura, con ripiego su BeautifulSoup e Jina AI Reader)
         |
         v
    filtro lessicale (src/filtering)
@@ -52,12 +52,7 @@ Se vuoi far girare il sistema sul tuo account, ecco i passaggi:
 ### 2. Supabase (Database Postgres)
 1. Crea un progetto gratuito su https://supabase.com.
 2. Dal **SQL Editor**, incolla ed esegui il codice che trovi in `sql/schema.sql` per creare tutte le tabelle, gli indici e le policy di sicurezza necessarie. Su un database nuovo l'esecuzione di `sql/schema.sql` è sufficiente a inizializzare l'intero schema aggiornato.
-3. Se invece disponi già di un database attivo creato con una versione precedente dello schema, applica i file di migrazione presenti in `sql/migrations/` in ordine cronologico:
-   - `sql/migrations/2026-07-30_source_normalization.sql`: normalizzazione retroattiva del dominio sorgente per gli articoli storici acquisiti da Google News (già eseguita sul database di produzione, conservata esclusivamente come riferimento storico).
-   - `sql/migrations/2026-10-11_email.sql`: estensione delle tabelle `subscribers` e `subscription_requests` per il supporto alle notifiche via email.
-   - `sql/migrations/2026-10-11_monitoring_baseline.sql`: aggiunta dei campi `is_baseline` e `hash_method` alla tabella `article_versions` per la gestione delle versioni di riferimento nel monitoraggio.
-   - `sql/migrations/2026-10-11_source_from_title.sql`: attribuzione retroattiva della testata dal titolo per gli articoli storici di Google News (già eseguita sul database di produzione, conservata esclusivamente come riferimento storico).
-4. Vai su **Project Settings > Database > Connection string** (seleziona "URI" e assicurati di usare la porta *pooled*, consigliata per GitHub Actions). Copia la stringa e usala come valore per il secret `DATABASE_URL`.
+3. Vai su **Project Settings > Database > Connection string** (seleziona "URI" e assicurati di usare la porta *pooled*, consigliata per GitHub Actions). Copia la stringa e usala come valore per il secret `DATABASE_URL`.
 
 ### 3. Chiave API di Gemini
 1. Vai su https://aistudio.google.com/apikey e genera una API key gratuita.
@@ -76,18 +71,7 @@ Per inviare le notifiche tramite un account Gmail dedicato:
    - Password (`SMTP_PASSWORD`): la password a 16 caratteri generata (senza spazi)
    - Mittente (`EMAIL_SENDER`): il tuo indirizzo Gmail
 
-### 5. Sviluppo in locale (facoltativo)
-Se preferisci eseguire la pipeline in locale sul tuo computer, puoi usare questi comandi:
-```bash
-python -m venv .venv
-source .venv/bin/activate  # su Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-cp .env.example .env       # ricordati di inserire le tue credenziali nel file .env
-python -m src.pipeline.run_acquisition
-python -m src.pipeline.run_monitoring
-```
-
-### 6. Iscriversi alle notifiche (Webhook ed Email) (RF-07, RF-06)
+### 5. Iscriversi alle notifiche (Webhook ed Email) 
 Il sistema permette a enti e utenti esterni di registrarsi per ricevere notifiche su potenziali focolai epidemici. Un iscritto può ricevere notifiche via webhook HTTP POST, via email, o su entrambi i canali.
 
 - **Canale Webhook**: riceve una chiamata POST JSON per ogni nuovo segnale rilevato. La funzione `notify_monitoring_update` è predisposta ma non attiva, perché il workflow di monitoraggio non abilita le notifiche.
